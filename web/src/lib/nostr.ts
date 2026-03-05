@@ -1,5 +1,5 @@
 import { generateSecretKey, getPublicKey, finalizeEvent, SimplePool } from 'nostr-tools'
-import type { Event } from 'nostr-tools'
+import type { Event, Filter } from 'nostr-tools'
 
 // Nostr relays — all open source, community run, no single point of control
 const RELAYS = [
