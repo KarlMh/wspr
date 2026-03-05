@@ -65,8 +65,7 @@ export class NostrChat {
     }
     this.sub = this.pool.subscribeMany(
       RELAYS,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      [filter as any],
+      filter as unknown as Filter,
       {
         onevent: (event: Event) => {
           if (this.seen.has(event.id)) return
