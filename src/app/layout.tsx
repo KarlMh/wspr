@@ -5,7 +5,8 @@ export const metadata: Metadata = {
   title: 'whisper',
   description: 'Free online image utility. No uploads required.',
   icons: {
-    icon: '/favicon.svg',
+    icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
   },
 }
 
