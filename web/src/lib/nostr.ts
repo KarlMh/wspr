@@ -70,6 +70,8 @@ export class NostrChat {
         onevent: (event: Event) => {
           if (this.seen.has(event.id)) return
           this.seen.add(event.id)
+          // Ignore our own messages — we already added them locally on send
+          if (event.pubkey === this.nostrPubKey) return
           try {
             const msg: NostrMessage = JSON.parse(event.content)
             if (!msg.id || !msg.ciphertext) return
