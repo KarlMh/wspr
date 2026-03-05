@@ -29,7 +29,7 @@ export type StoredMessage = {
 
 // Keys
 const IDENTITY_KEY = 'wspr_identity'
-const CONTACTS_KEY = 'wspr_contacts'
+const getContactsKey = (myPubKey: string) => `wspr_contacts_${myPubKey.slice(0, 16)}`
 const MESSAGES_PREFIX = 'wspr_msgs_'
 const MAX_MESSAGES = 500
 
@@ -50,9 +50,9 @@ export function clearIdentity(): void {
 }
 
 // Contacts
-export function loadContacts(): Contact[] {
+export function loadContacts(myPubKey = ''): Contact[] {
   try {
-    const raw = localStorage.getItem(CONTACTS_KEY)
+    const raw = localStorage.getItem(getContactsKey(myPubKey))
     return raw ? JSON.parse(raw) : []
   } catch { return [] }
 }
