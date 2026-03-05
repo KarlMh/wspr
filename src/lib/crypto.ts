@@ -1,13 +1,13 @@
 async function getKey(keyMaterial: Uint8Array, salt: Uint8Array): Promise<CryptoKey> {
   const raw = await crypto.subtle.importKey(
     'raw',
-    keyMaterial,
+    keyMaterial.buffer.slice(keyMaterial.byteOffset, keyMaterial.byteOffset + keyMaterial.byteLength) as ArrayBuffer,
     'PBKDF2',
     false,
     ['deriveKey']
   )
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer, iterations: 100000, hash: 'SHA-256' },
     raw,
     { name: 'AES-GCM', length: 256 },
     false,
