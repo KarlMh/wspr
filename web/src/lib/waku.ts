@@ -1,11 +1,7 @@
 import { createLightNode, waitForRemotePeer, createEncoder, createDecoder } from '@waku/sdk'
-import { Protocols } from '@waku/core'
 
-// Content topic format: /wspr/1/<channel-id>/proto
-// Channel ID is derived from both parties' public keys — unique per conversation
 function getContentTopic(myPubKey: string, theirPubKey: string): string {
   const sorted = [myPubKey, theirPubKey].sort()
-  // Short hash of both keys for topic — deterministic, same for both parties
   let hash = 0
   const str = sorted[0] + sorted[1]
   for (let i = 0; i < str.length; i++) {
@@ -16,8 +12,8 @@ function getContentTopic(myPubKey: string, theirPubKey: string): string {
 
 export type WakuMessage = {
   id: string
-  from: string // sender public key (truncated)
-  ciphertext: string // base64 encrypted payload
+  from: string
+  ciphertext: string
   timestamp: number
   type: 'text' | 'image' | 'file'
   fileName?: string
@@ -51,9 +47,8 @@ export class WakuChat {
 
     this.node = await createLightNode({ defaultBootstrap: true })
     await this.node.start()
-    await waitForRemotePeer(this.node, [Protocols.LightPush, Protocols.Filter])
+    await waitForRemotePeer(this.node)
 
-    // Subscribe to incoming messages
     const decoder = createDecoder(this.contentTopic)
     const { unsubscribe } = await this.node.filter.subscribe(
       [decoder],
