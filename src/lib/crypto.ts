@@ -1,13 +1,24 @@
 async function getKey(keyMaterial: Uint8Array, salt: Uint8Array): Promise<CryptoKey> {
   const raw = await crypto.subtle.importKey(
     'raw',
-    keyMaterial.buffer.slice(keyMaterial.byteOffset, keyMaterial.byteOffset + keyMaterial.byteLength) as ArrayBuffer,
+    keyMaterial.buffer.slice(
+      keyMaterial.byteOffset,
+      keyMaterial.byteOffset + keyMaterial.byteLength
+    ) as ArrayBuffer,
     'PBKDF2',
     false,
     ['deriveKey']
   )
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer, iterations: 100000, hash: 'SHA-256' },
+    {
+      name: 'PBKDF2',
+      salt: salt.buffer.slice(
+        salt.byteOffset,
+        salt.byteOffset + salt.byteLength
+      ) as ArrayBuffer,
+      iterations: 100000,
+      hash: 'SHA-256'
+    },
     raw,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -24,10 +35,21 @@ function getHourStamp(offsetHours = 0): string {
 async function buildKeyMaterial(
   password: string,
   keyfile?: Uint8Array,
+  sharedSecret?: Uint8Array,
   hourOffset = 0
 ): Promise<Uint8Array> {
   const hourStamp = getHourStamp(hourOffset)
   const enc = new TextEncoder()
+
+  // ECDH shared secret takes priority
+  if (sharedSecret && sharedSecret.length > 0) {
+    const stampBytes = enc.encode(hourStamp)
+    const combined = new Uint8Array(sharedSecret.length + stampBytes.length)
+    combined.set(sharedSecret, 0)
+    combined.set(stampBytes, sharedSecret.length)
+    const hash = await crypto.subtle.digest('SHA-256', combined)
+    return new Uint8Array(hash)
+  }
 
   if (keyfile && keyfile.length > 0) {
     const stampBytes = enc.encode(hourStamp)
@@ -43,7 +65,6 @@ async function buildKeyMaterial(
   return new Uint8Array(hash)
 }
 
-// Compute SHA-256 hash of a string, return as hex
 async function hashMessage(message: string): Promise<string> {
   const enc = new TextEncoder()
   const hashBuffer = await crypto.subtle.digest('SHA-256', enc.encode(message))
@@ -55,14 +76,14 @@ async function hashMessage(message: string): Promise<string> {
 export async function encrypt(
   message: string,
   password: string,
-  keyfile?: Uint8Array
+  keyfile?: Uint8Array,
+  sharedSecret?: Uint8Array
 ): Promise<string> {
-  const keyMaterial = await buildKeyMaterial(password, keyfile, 0)
+  const keyMaterial = await buildKeyMaterial(password, keyfile, sharedSecret, 0)
   const salt = crypto.getRandomValues(new Uint8Array(16))
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const key = await getKey(keyMaterial, salt)
 
-  // Append hash to message before encrypting
   const hash = await hashMessage(message)
   const payload = JSON.stringify({ m: message, h: hash })
 
@@ -88,7 +109,8 @@ export type DecryptResult = {
 export async function decrypt(
   encoded: string,
   password: string,
-  keyfile?: Uint8Array
+  keyfile?: Uint8Array,
+  sharedSecret?: Uint8Array
 ): Promise<DecryptResult | null> {
   if (!encoded || encoded.trim().length === 0) return null
 
@@ -107,7 +129,7 @@ export async function decrypt(
 
   for (const offset of [0, -1, -2]) {
     try {
-      const keyMaterial = await buildKeyMaterial(password, keyfile, offset)
+      const keyMaterial = await buildKeyMaterial(password, keyfile, sharedSecret, offset)
       const key = await getKey(keyMaterial, salt)
       const decrypted = await crypto.subtle.decrypt(
         { name: 'AES-GCM', iv },
@@ -116,15 +138,15 @@ export async function decrypt(
       )
       const raw = new TextDecoder().decode(decrypted)
 
-      // Parse and verify integrity
       try {
-        const parsed = JSON.parse(raw)
-        if (parsed.m && parsed.h) {
-          const expectedHash = await hashMessage(parsed.m)
-          const intact = expectedHash === parsed.h
-          return { message: parsed.m, intact }
+        const trimmed = raw.trim()
+        if (trimmed.startsWith('{')) {
+          const parsed = JSON.parse(trimmed)
+          if (parsed.m !== undefined && parsed.h !== undefined) {
+            const expectedHash = await hashMessage(parsed.m)
+            return { message: parsed.m, intact: expectedHash === parsed.h }
+          }
         }
-        // Legacy format — no hash
         return { message: raw, intact: false }
       } catch {
         return { message: raw, intact: false }
