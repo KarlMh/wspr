@@ -1,13 +1,16 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { encode, decodeChannel } from '@/lib/steg'
-import { encrypt, decrypt, getTimeWindow } from '@/lib/crypto'
+import { encodeV2, decodeV2 } from '@/lib/stegv2'
+import { generateCarrier, decodeCarrier, getGenerativeCapacity } from '@/lib/gencarrier'
+import { encrypt, decrypt, encryptToBytes, decryptFromBytes, getTimeWindow } from '@/lib/crypto'
 import { stripExif } from '@/lib/exif'
 import { generateKeyPair, deriveSharedSecret, exportPrivateKey, importPrivateKey, generateSafetyNumber } from '@/lib/keys'
 import { encodeAudio, decodeAudio, getAudioCapacity } from '@/lib/audio'
 
 type KeyMode = 'password' | 'keyfile' | 'ecdh'
-type CarrierMode = 'image' | 'audio'
+type CarrierMode = 'image' | 'image-gen' | 'audio'
+type StegMode = 'v1' | 'v2'
 
 export default function Home() {
   const [fileStatus, setFileStatus] = useState<'none' | 'loading' | 'ready'>('none')
@@ -15,6 +18,7 @@ export default function Home() {
   const [fileSize, setFileSize] = useState(0)
   const [imageDims, setImageDims] = useState({ w: 0, h: 0 })
   const [carrierMode, setCarrierMode] = useState<CarrierMode>('image')
+  const [stegMode, setStegMode] = useState<StegMode>('v2')
 
   const [keyMode, setKeyMode] = useState<KeyMode>('password')
   const [password, setPassword] = useState('')
@@ -47,7 +51,11 @@ export default function Home() {
   const [status, setStatus] = useState<'idle' | 'ready' | 'processing' | 'done' | 'cleared'>('idle')
   const [timeWindow, setTimeWindow] = useState<{ current: string; expiresIn: number } | null>(null)
 
+  // Preview canvas for generated carrier
+  const [showPreview, setShowPreview] = useState(false)
+
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const keyfileInputRef = useRef<HTMLInputElement>(null)
   const decoyKeyfileInputRef = useRef<HTMLInputElement>(null)
@@ -65,6 +73,7 @@ export default function Home() {
     setFileSize(0)
     setImageDims({ w: 0, h: 0 })
     setCarrierMode('image')
+    setStegMode('v2')
     setPassword('')
     setKeyfile(undefined)
     setKeyfileName('')
@@ -88,6 +97,7 @@ export default function Home() {
     setDecodedVisible(false)
     setLog([])
     setStatus('cleared')
+    setShowPreview(false)
     audioBufferRef.current = null
     if (fileInputRef.current) fileInputRef.current.value = ''
     if (keyfileInputRef.current) keyfileInputRef.current.value = ''
@@ -98,6 +108,11 @@ export default function Home() {
       ctx?.clearRect(0, 0, canvas.width, canvas.height)
       canvas.width = 0
       canvas.height = 0
+    }
+    const previewCanvas = previewCanvasRef.current
+    if (previewCanvas) {
+      const ctx = previewCanvas.getContext('2d')
+      ctx?.clearRect(0, 0, previewCanvas.width, previewCanvas.height)
     }
     setTimeout(() => setStatus('idle'), 2000)
   }, [])
@@ -245,17 +260,25 @@ export default function Home() {
     ss: keyMode === 'ecdh' ? sharedSecret : undefined
   })
 
+  const getScatterKey = (pw: string, kf?: Uint8Array, ss?: Uint8Array): Uint8Array => {
+    if (ss) return ss
+    if (kf) return kf
+    return new TextEncoder().encode(pw)
+  }
+
   const handleEncode = async () => {
     if (!message.trim()) return addLog('ERROR: No payload.')
     if (keyMode === 'password' && !password.trim()) return addLog('ERROR: No key.')
     if (keyMode === 'keyfile' && !keyfile) return addLog('ERROR: No keyfile loaded.')
     if (keyMode === 'ecdh' && !sharedSecret) return addLog('ERROR: ECDH channel not established.')
 
+    const { pw, kf, ss } = getKeyParams()
+
+    // Audio mode
     if (carrierMode === 'audio') {
       setStatus('processing')
       addLog('Encrypting payload...')
       try {
-        const { pw, kf, ss } = getKeyParams()
         const encrypted = await encrypt(message.trim(), pw, kf, ss)
         addLog('Encoding into audio...')
         const blob = encodeAudio(encrypted)
@@ -274,6 +297,51 @@ export default function Home() {
       return
     }
 
+    // Generative carrier mode (Mode B)
+    if (carrierMode === 'image-gen') {
+      setStatus('processing')
+      addLog('Encrypting payload...')
+      try {
+        const scatterKey = getScatterKey(pw, kf, ss)
+        const cipherBytes = await encryptToBytes(message.trim(), pw, kf, ss)
+
+        addLog('Generating carrier image...')
+        const imageData = generateCarrier(cipherBytes, scatterKey)
+
+        // Draw to canvas then export
+        const canvas = canvasRef.current!
+        canvas.width = imageData.width
+        canvas.height = imageData.height
+        const ctx = canvas.getContext('2d')!
+        ctx.putImageData(imageData, 0, 0)
+
+        // Show preview
+        const preview = previewCanvasRef.current
+        if (preview) {
+          preview.width = imageData.width
+          preview.height = imageData.height
+          preview.getContext('2d')?.putImageData(imageData, 0, 0)
+          setShowPreview(true)
+        }
+
+        const blob = await stripExif(canvas)
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = (outputName.trim() || 'texture') + '.png'
+        a.click()
+
+        setMessage('')
+        setPassword('')
+        addLog(`Saved: ${outputName.trim() || 'texture'}.png — generative carrier, statistically clean`)
+        setStatus('done')
+      } catch (e: unknown) {
+        addLog(`ERROR: ${e instanceof Error ? e.message : 'Unknown error'}`)
+        setStatus('ready')
+      }
+      return
+    }
+
+    // Image mode
     const canvas = canvasRef.current
     if (!canvas || fileStatus !== 'ready') return addLog('ERROR: No image loaded.')
 
@@ -281,27 +349,31 @@ export default function Home() {
     addLog('Encrypting payload...')
 
     try {
-      const { pw, kf, ss } = getKeyParams()
-      const realEncrypted = await encrypt(message.trim(), pw, kf, ss)
+      const scatterKey = getScatterKey(pw, kf, ss)
 
-      const decoyEncrypted = (showDecoy && decoyMessage.trim())
-        ? await encrypt(
-            decoyMessage.trim(),
-            decoyKeyfile ? '' : decoyPassword.trim(),
-            decoyKeyfile
-          )
-        : await encrypt('', 'no-decoy-placeholder')
-
-      addLog('Encoding into image...')
-      const ctx = canvas.getContext('2d')!
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const scatterKey = ss || kf || (pw ? new TextEncoder().encode(pw) : undefined)
-      const encoded = encode(imageData, realEncrypted, decoyEncrypted, scatterKey)
-      ctx.putImageData(encoded, 0, 0)
+      if (stegMode === 'v2') {
+        // Mode A v2 — hardened LSB
+        const cipherBytes = await encryptToBytes(message.trim(), pw, kf, ss)
+        addLog('Encoding with hardened LSB...')
+        const ctx = canvas.getContext('2d')!
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const encoded = encodeV2(imageData, cipherBytes, scatterKey)
+        ctx.putImageData(encoded, 0, 0)
+      } else {
+        // Mode A v1 — original
+        const realEncrypted = await encrypt(message.trim(), pw, kf, ss)
+        const decoyEncrypted = (showDecoy && decoyMessage.trim())
+          ? await encrypt(decoyMessage.trim(), decoyKeyfile ? '' : decoyPassword.trim(), decoyKeyfile)
+          : await encrypt('', 'no-decoy-placeholder')
+        addLog('Encoding into image...')
+        const ctx = canvas.getContext('2d')!
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const encoded = encode(imageData, realEncrypted, decoyEncrypted, scatterKey)
+        ctx.putImageData(encoded, 0, 0)
+      }
 
       addLog('Stripping metadata...')
       const blob = await stripExif(canvas)
-
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
       a.download = (outputName.trim() || 'image') + '.png'
@@ -311,7 +383,6 @@ export default function Home() {
       setPassword('')
       setDecoyMessage('')
       setDecoyPassword('')
-
       addLog(`Saved: ${outputName.trim() || 'image'}.png — window ${timeWindow?.expiresIn ?? '?'}m`)
       setStatus('done')
     } catch (e: unknown) {
@@ -325,12 +396,15 @@ export default function Home() {
     if (keyMode === 'keyfile' && !keyfile) return addLog('ERROR: No keyfile loaded.')
     if (keyMode === 'ecdh' && !sharedSecret) return addLog('ERROR: ECDH channel not established.')
 
+    const { pw, kf, ss } = getKeyParams()
+    const scatterKey = getScatterKey(pw, kf, ss)
+
+    // Audio decode
     if (carrierMode === 'audio') {
       if (!audioBufferRef.current) return addLog('ERROR: No audio loaded.')
       setStatus('processing')
       addLog('Extracting from audio...')
       try {
-        const { pw, kf, ss } = getKeyParams()
         const raw = decodeAudio(audioBufferRef.current)
         const result = await decrypt(raw, pw, kf, ss)
         if (result && result.message.trim().length > 0) {
@@ -350,25 +424,53 @@ export default function Home() {
 
     const canvas = canvasRef.current
     if (!canvas || fileStatus !== 'ready') return addLog('ERROR: No image loaded.')
-
     setStatus('processing')
     addLog('Extracting...')
 
     try {
       const ctx = canvas.getContext('2d')!
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const { pw, kf, ss } = getKeyParams()
-      const scatterKey = ss || kf || (pw ? new TextEncoder().encode(pw) : undefined)
 
+      // Try generative decode first if in gen mode
+      if (carrierMode === 'image-gen') {
+        addLog('Decoding generative carrier...')
+        const cipherBytes = decodeCarrier(imageData, scatterKey)
+        if (cipherBytes) {
+          const result = await decryptFromBytes(cipherBytes, pw, kf, ss)
+          if (result && result.message.trim().length > 0) {
+            showDecodedMessage(result.message, result.intact)
+            addLog(result.intact ? 'Done. Integrity verified.' : 'Done. WARNING: Integrity check failed.')
+            setStatus('done')
+            return
+          }
+        }
+        addLog('No data found.')
+        setStatus('ready')
+        return
+      }
+
+      // Try v2 first, fall back to v1
+      addLog('Trying hardened decode...')
+      const cipherBytes = decodeV2(imageData, scatterKey)
+      if (cipherBytes) {
+        const result = await decryptFromBytes(cipherBytes, pw, kf, ss)
+        if (result && result.message.trim().length > 0) {
+          showDecodedMessage(result.message, result.intact)
+          addLog(result.intact ? 'Done. Integrity verified. Output visible for 30s.' : 'Done. WARNING: Integrity check failed.')
+          setStatus('done')
+          return
+        }
+      }
+
+      // Fall back to v1
+      addLog('Trying standard decode...')
       const rawReal = decodeChannel(imageData, 0, scatterKey)
       const rawDecoy = decodeChannel(imageData, 1, scatterKey)
 
       const realResult = await decrypt(rawReal, pw, kf, ss)
       if (realResult !== null && realResult.message.trim().length > 0) {
         showDecodedMessage(realResult.message, realResult.intact)
-        addLog(realResult.intact
-          ? 'Done. Integrity verified. Output visible for 30s.'
-          : 'Done. WARNING: Integrity check failed.')
+        addLog(realResult.intact ? 'Done. Integrity verified. Output visible for 30s.' : 'Done. WARNING: Integrity check failed.')
         setStatus('done')
         return
       }
@@ -376,9 +478,7 @@ export default function Home() {
       const decoyResult = await decrypt(rawDecoy, pw, kf, ss)
       if (decoyResult !== null && decoyResult.message.trim().length > 0) {
         showDecodedMessage(decoyResult.message, decoyResult.intact)
-        addLog(decoyResult.intact
-          ? 'Done. Integrity verified. Output visible for 30s.'
-          : 'Done. WARNING: Integrity check failed.')
+        addLog(decoyResult.intact ? 'Done. Integrity verified.' : 'Done. WARNING: Integrity check failed.')
         setStatus('done')
         return
       }
@@ -394,6 +494,8 @@ export default function Home() {
   const isEncodeMode = message.trim().length > 0
   const capacity = carrierMode === 'audio'
     ? getAudioCapacity()
+    : carrierMode === 'image-gen'
+    ? getGenerativeCapacity()
     : Math.floor((imageDims.w * imageDims.h) / 8)
   const capacityUsed = capacity > 0 ? Math.min(100, (message.length / capacity) * 100) : 0
 
@@ -407,14 +509,12 @@ export default function Home() {
           <div className={`w-2 h-2 rounded-full transition-colors ${
             status === 'processing' ? 'bg-yellow-500' :
             status === 'done' ? 'bg-zinc-400' :
-            status === 'cleared' ? 'bg-zinc-700' :
-            'bg-zinc-600'}`} />
-          <span className="text-zinc-500 text-xs tracking-widest uppercase">Image Utility v1.0</span>
+            status === 'cleared' ? 'bg-zinc-700' : 'bg-zinc-600'}`} />
+          <span className="text-zinc-500 text-xs tracking-widest uppercase">Image Utility v2.0</span>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-zinc-700 text-xs">ESC x2 to clear</span>
-          <button
-            onClick={clearAll}
+          <button onClick={clearAll}
             className="text-xs text-zinc-600 hover:text-zinc-300 border border-zinc-800 hover:border-zinc-600 px-3 py-1 transition-all">
             CLEAR
           </button>
@@ -427,68 +527,75 @@ export default function Home() {
           {/* Carrier mode */}
           <div className="border-b border-zinc-800 p-4">
             <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Carrier</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => { setCarrierMode('image'); setFileStatus('none'); setLog([]) }}
-                className={`flex-1 text-xs py-1.5 border transition-all ${
-                  carrierMode === 'image' ? 'border-zinc-500 text-zinc-300' : 'border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>
-                Image
-              </button>
-              <button
-                onClick={() => { setCarrierMode('audio'); setFileStatus('none'); setLog([]) }}
-                className={`flex-1 text-xs py-1.5 border transition-all ${
-                  carrierMode === 'audio' ? 'border-zinc-500 text-zinc-300' : 'border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>
-                Audio
-              </button>
+            <div className="flex gap-1">
+              {([['image', 'Image'], ['image-gen', 'Generate'], ['audio', 'Audio']] as [CarrierMode, string][]).map(([m, label]) => (
+                <button key={m}
+                  onClick={() => { setCarrierMode(m); setFileStatus('none'); setLog([]) }}
+                  className={`flex-1 text-xs py-1.5 border transition-all ${
+                    carrierMode === m ? 'border-zinc-500 text-zinc-300' : 'border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>
+                  {label}
+                </button>
+              ))}
             </div>
-          </div>
-
-          {/* File input */}
-          <div className="border-b border-zinc-800 p-4">
-            <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">
-              {carrierMode === 'audio' ? 'Input Audio (decode only)' : 'Input Image'}
-            </p>
-            <label className={`block border p-4 cursor-pointer transition-all text-center
-              ${fileStatus === 'ready' ? 'border-zinc-600 bg-zinc-900' :
-                fileStatus === 'loading' ? 'border-zinc-700' :
-                'border-zinc-800 hover:border-zinc-700'}`}>
-              {fileStatus === 'none' && (
-                <span className="text-zinc-600 text-xs">
-                  {carrierMode === 'audio' ? 'Select WAV file to decode' : 'Select PNG file'}
-                </span>
-              )}
-              {fileStatus === 'loading' && <span className="text-zinc-500 text-xs">Loading...</span>}
-              {fileStatus === 'ready' && (
-                <div>
-                  <span className="text-zinc-400 text-xs block truncate">{fileName}</span>
-                  <span className="text-zinc-600 text-xs">
-                    {carrierMode === 'image'
-                      ? `${imageDims.w}x${imageDims.h} — ${(fileSize / 1024).toFixed(1)} KB`
-                      : `${(fileSize / 1024).toFixed(1)} KB`}
-                  </span>
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={carrierMode === 'audio' ? 'audio/wav' : 'image/png'}
-                onChange={handleFile}
-                className="hidden"
-              />
-            </label>
-            {carrierMode === 'audio' && (
-              <p className="text-zinc-800 text-xs mt-2">For encoding, audio carrier is generated automatically.</p>
+            {carrierMode === 'image' && (
+              <div className="flex gap-1 mt-2">
+                <button onClick={() => setStegMode('v2')}
+                  className={`flex-1 text-xs py-1 border transition-all ${stegMode === 'v2' ? 'border-zinc-600 text-zinc-400' : 'border-zinc-900 text-zinc-700 hover:border-zinc-800'}`}>
+                  Hardened
+                </button>
+                <button onClick={() => setStegMode('v1')}
+                  className={`flex-1 text-xs py-1 border transition-all ${stegMode === 'v1' ? 'border-zinc-600 text-zinc-400' : 'border-zinc-900 text-zinc-700 hover:border-zinc-800'}`}>
+                  Standard
+                </button>
+              </div>
+            )}
+            {carrierMode === 'image-gen' && (
+              <p className="text-zinc-700 text-xs mt-2">Generates synthetic Perlin noise image. No carrier photo needed. Statistically undetectable.</p>
             )}
           </div>
+
+          {/* File input — not needed for generative encode */}
+          {(carrierMode === 'image' || carrierMode === 'audio' || (carrierMode === 'image-gen')) && (
+            <div className="border-b border-zinc-800 p-4">
+              <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">
+                {carrierMode === 'audio' ? 'Input Audio (decode)' :
+                 carrierMode === 'image-gen' ? 'Input Image (decode only)' :
+                 'Input Image'}
+              </p>
+              <label className={`block border p-4 cursor-pointer transition-all text-center
+                ${fileStatus === 'ready' ? 'border-zinc-600 bg-zinc-900' :
+                  fileStatus === 'loading' ? 'border-zinc-700' :
+                  'border-zinc-800 hover:border-zinc-700'}`}>
+                {fileStatus === 'none' && (
+                  <span className="text-zinc-600 text-xs">
+                    {carrierMode === 'audio' ? 'Select WAV to decode' :
+                     carrierMode === 'image-gen' ? 'Select generated PNG to decode' :
+                     'Select PNG file'}
+                  </span>
+                )}
+                {fileStatus === 'loading' && <span className="text-zinc-500 text-xs">Loading...</span>}
+                {fileStatus === 'ready' && (
+                  <div>
+                    <span className="text-zinc-400 text-xs block truncate">{fileName}</span>
+                    <span className="text-zinc-600 text-xs">
+                      {carrierMode !== 'audio' ? `${imageDims.w}x${imageDims.h} — ` : ''}
+                      {(fileSize / 1024).toFixed(1)} KB
+                    </span>
+                  </div>
+                )}
+                <input ref={fileInputRef} type="file"
+                  accept={carrierMode === 'audio' ? 'audio/wav' : 'image/png'}
+                  onChange={handleFile} className="hidden" />
+              </label>
+            </div>
+          )}
 
           {/* Key method */}
           <div className="border-b border-zinc-800 p-4">
             <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Key Method</p>
             <div className="flex gap-1 mb-3">
               {(['password', 'keyfile', 'ecdh'] as KeyMode[]).map(m => (
-                <button
-                  key={m}
-                  onClick={() => setKeyMode(m)}
+                <button key={m} onClick={() => setKeyMode(m)}
                   className={`flex-1 text-xs py-1.5 border transition-all ${
                     keyMode === m ? 'border-zinc-500 text-zinc-300' : 'border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>
                   {m === 'ecdh' ? 'ECDH' : m.charAt(0).toUpperCase() + m.slice(1)}
@@ -497,23 +604,15 @@ export default function Home() {
             </div>
 
             {keyMode === 'password' && (
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="——————————————"
-                autoComplete="off"
-                spellCheck={false}
-                className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 placeholder-zinc-800"
-              />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="——————————————" autoComplete="off" spellCheck={false}
+                className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 placeholder-zinc-800" />
             )}
 
             {keyMode === 'keyfile' && (
               <label className={`block border p-3 cursor-pointer text-center transition-all
                 ${keyfileName ? 'border-zinc-600 bg-zinc-900' : 'border-zinc-800 hover:border-zinc-700'}`}>
-                <span className="text-xs text-zinc-500 block truncate">
-                  {keyfileName || 'Select any file as key'}
-                </span>
+                <span className="text-xs text-zinc-500 block truncate">{keyfileName || 'Select any file as key'}</span>
                 {keyfileName && <span className="text-zinc-700 text-xs">Click to change</span>}
                 <input ref={keyfileInputRef} type="file" onChange={e => handleKeyfile(e, false)} className="hidden" />
               </label>
@@ -522,69 +621,44 @@ export default function Home() {
             {keyMode === 'ecdh' && (
               <div className="flex flex-col gap-2">
                 {ecdhStatus === 'idle' && (
-                  <button
-                    onClick={handleGenerateKeyPair}
+                  <button onClick={handleGenerateKeyPair}
                     className="w-full border border-zinc-700 text-zinc-400 text-xs py-2 hover:bg-zinc-900 transition-all">
                     Generate Keypair
                   </button>
                 )}
-
                 {ecdhStatus !== 'idle' && (
                   <>
-                    <p className="text-zinc-700 text-xs">Your public key — share this:</p>
+                    <p className="text-zinc-700 text-xs">Your public key:</p>
                     <div className="bg-zinc-900 border border-zinc-800 p-2">
-                      <p className="text-zinc-500 text-xs font-mono leading-relaxed break-all">
-                        {myPublicKey.slice(0, 40)}...
-                      </p>
+                      <p className="text-zinc-500 text-xs break-all">{myPublicKey.slice(0, 40)}...</p>
                     </div>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(myPublicKey)}
+                    <button onClick={() => navigator.clipboard.writeText(myPublicKey)}
                       className="text-xs text-zinc-600 hover:text-zinc-400 border border-zinc-800 py-1 transition-all">
                       Copy public key
                     </button>
-
                     <p className="text-zinc-700 text-xs mt-1">Their public key:</p>
-                    <textarea
-                      value={theirPublicKey}
-                      onChange={e => setTheirPublicKey(e.target.value)}
-                      placeholder="Paste their public key..."
-                      autoComplete="off"
-                      spellCheck={false}
-                      className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-2 focus:outline-none focus:border-zinc-600 resize-none h-16 placeholder-zinc-800"
-                    />
-
+                    <textarea value={theirPublicKey} onChange={e => setTheirPublicKey(e.target.value)}
+                      placeholder="Paste their public key..." autoComplete="off" spellCheck={false}
+                      className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-2 focus:outline-none focus:border-zinc-600 resize-none h-16 placeholder-zinc-800" />
                     {ecdhStatus === 'generated' && (
-                      <button
-                        onClick={handleDeriveSecret}
-                        disabled={!theirPublicKey.trim()}
+                      <button onClick={handleDeriveSecret} disabled={!theirPublicKey.trim()}
                         className="w-full border border-zinc-600 text-zinc-300 text-xs py-2 hover:bg-zinc-900 transition-all disabled:opacity-30">
                         Establish Channel
                       </button>
                     )}
-
                     {ecdhStatus === 'connected' && (
                       <div className="flex flex-col gap-2">
                         <p className="text-zinc-600 text-xs uppercase tracking-widest">Safety number</p>
                         <div className="bg-zinc-900 border border-zinc-800 p-3">
-                          <p className="text-zinc-300 text-sm tracking-widest font-mono text-center">
-                            {safetyNumber}
-                          </p>
+                          <p className="text-zinc-300 text-sm tracking-widest font-mono text-center">{safetyNumber}</p>
                         </div>
-                        <p className="text-zinc-700 text-xs">
-                          Verify this matches your contact via a separate channel. If it matches, no one intercepted the exchange.
-                        </p>
-                        <button
-                          onClick={() => setSafetyVerified(v => !v)}
-                          className={`text-xs py-2 border transition-all ${
-                            safetyVerified
-                              ? 'border-zinc-500 text-zinc-300'
-                              : 'border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>
+                        <p className="text-zinc-700 text-xs">Verify this matches your contact via a separate channel.</p>
+                        <button onClick={() => setSafetyVerified(v => !v)}
+                          className={`text-xs py-2 border transition-all ${safetyVerified ? 'border-zinc-500 text-zinc-300' : 'border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>
                           {safetyVerified ? 'Verified' : 'Mark as verified'}
                         </button>
                         {!safetyVerified && (
-                          <p className="text-zinc-700 text-xs">
-                            Unverified — confirm safety number before sending sensitive data.
-                          </p>
+                          <p className="text-zinc-700 text-xs">Unverified — confirm safety number before sending sensitive data.</p>
                         )}
                       </div>
                     )}
@@ -599,66 +673,44 @@ export default function Home() {
             <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">
               Payload <span className="text-zinc-800 normal-case">(leave empty to decode)</span>
             </p>
-            <textarea
-              value={message}
-              onChange={e => setMessage(e.target.value)}
+            <textarea value={message} onChange={e => setMessage(e.target.value)}
               placeholder="Type to encode. Leave empty to decode."
-              autoComplete="off"
-              spellCheck={false}
-              className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 resize-none h-28 placeholder-zinc-800"
-            />
+              autoComplete="off" spellCheck={false}
+              className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 resize-none h-28 placeholder-zinc-800" />
           </div>
 
           {/* Output filename */}
           <div className="border-b border-zinc-800 p-4">
             <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Output Filename</p>
             <div className="flex items-center gap-1">
-              <input
-                type="text"
-                value={outputName}
-                onChange={e => setOutputName(e.target.value)}
-                autoComplete="off"
-                spellCheck={false}
-                className="flex-1 bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600"
-              />
+              <input type="text" value={outputName} onChange={e => setOutputName(e.target.value)}
+                autoComplete="off" spellCheck={false}
+                className="flex-1 bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600" />
               <span className="text-zinc-700 text-xs">{carrierMode === 'audio' ? '.wav' : '.png'}</span>
             </div>
           </div>
 
-          {/* Deniability */}
-          {carrierMode === 'image' && (
+          {/* Deniability — image v1 only */}
+          {carrierMode === 'image' && stegMode === 'v1' && (
             <div className="border-b border-zinc-800">
-              <button
-                onClick={() => setShowDecoy(v => !v)}
+              <button onClick={() => setShowDecoy(v => !v)}
                 className="w-full text-left px-4 py-3 text-zinc-700 text-xs hover:text-zinc-500 transition-all uppercase tracking-widest">
                 {showDecoy ? '- Deniability layer' : '+ Deniability layer'}
               </button>
               {showDecoy && (
                 <div className="px-4 pb-4 flex flex-col gap-3 border-t border-zinc-800 pt-3">
                   <p className="text-zinc-700 text-xs">Alternate payload — revealed with alternate key</p>
-                  <textarea
-                    value={decoyMessage}
-                    onChange={e => setDecoyMessage(e.target.value)}
-                    placeholder="Cover payload..."
-                    autoComplete="off"
-                    spellCheck={false}
-                    className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-700 resize-none h-20 placeholder-zinc-800"
-                  />
+                  <textarea value={decoyMessage} onChange={e => setDecoyMessage(e.target.value)}
+                    placeholder="Cover payload..." autoComplete="off" spellCheck={false}
+                    className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-700 resize-none h-20 placeholder-zinc-800" />
                   {keyMode === 'password' ? (
-                    <input
-                      type="password"
-                      value={decoyPassword}
-                      onChange={e => setDecoyPassword(e.target.value)}
-                      placeholder="Alternate key"
-                      autoComplete="off"
-                      className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-700 placeholder-zinc-800"
-                    />
+                    <input type="password" value={decoyPassword} onChange={e => setDecoyPassword(e.target.value)}
+                      placeholder="Alternate key" autoComplete="off"
+                      className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-700 placeholder-zinc-800" />
                   ) : (
                     <label className={`block border p-3 cursor-pointer text-center transition-all
                       ${decoyKeyfileName ? 'border-zinc-700 bg-zinc-900' : 'border-zinc-800 hover:border-zinc-700'}`}>
-                      <span className="text-xs text-zinc-600 block truncate">
-                        {decoyKeyfileName || 'Select alternate keyfile'}
-                      </span>
+                      <span className="text-xs text-zinc-600 block truncate">{decoyKeyfileName || 'Select alternate keyfile'}</span>
                       <input ref={decoyKeyfileInputRef} type="file" onChange={e => handleKeyfile(e, true)} className="hidden" />
                     </label>
                   )}
@@ -669,16 +721,15 @@ export default function Home() {
 
           {/* Actions */}
           <div className="p-4 flex gap-2">
-            <button
-              onClick={handleDecode}
+            <button onClick={handleDecode}
               disabled={status === 'processing' ||
                 (carrierMode === 'image' && fileStatus !== 'ready') ||
+                (carrierMode === 'image-gen' && fileStatus !== 'ready') ||
                 (carrierMode === 'audio' && !audioBufferRef.current)}
               className="flex-1 py-3 text-xs uppercase tracking-widest border border-zinc-700 text-zinc-400 hover:bg-zinc-900 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
               Decode
             </button>
-            <button
-              onClick={handleEncode}
+            <button onClick={handleEncode}
               disabled={status === 'processing' || !isEncodeMode ||
                 (carrierMode === 'image' && fileStatus !== 'ready')}
               className="flex-1 py-3 text-xs uppercase tracking-widest border border-zinc-400 text-zinc-200 hover:bg-zinc-800 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
@@ -689,6 +740,16 @@ export default function Home() {
 
         {/* Right panel */}
         <div className="flex-1 flex flex-col min-w-0">
+
+          {/* Preview canvas for generative mode */}
+          {showPreview && (
+            <div className="border-b border-zinc-800 p-4">
+              <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Generated carrier</p>
+              <canvas ref={previewCanvasRef}
+                className="w-full max-w-xs"
+                style={{ imageRendering: 'pixelated' }} />
+            </div>
+          )}
 
           <div className="flex-1 p-6 border-b border-zinc-800 overflow-y-auto">
             <div className="flex items-center justify-between mb-3">
@@ -735,10 +796,8 @@ export default function Home() {
               </span>
             </div>
             <div className="w-full bg-zinc-900 h-px">
-              <div
-                className={`h-px transition-all ${capacityUsed > 90 ? 'bg-red-800' : 'bg-zinc-600'}`}
-                style={{ width: `${capacityUsed}%` }}
-              />
+              <div className={`h-px transition-all ${capacityUsed > 90 ? 'bg-red-800' : 'bg-zinc-600'}`}
+                style={{ width: `${capacityUsed}%` }} />
             </div>
           </div>
 
@@ -769,7 +828,7 @@ export default function Home() {
               window {timeWindow.expiresIn}m
             </span>
           )}
-          <span className="text-zinc-800 text-xs">AES-256-GCM / LSB-scatter / PBKDF2 / ECDH</span>
+          <span className="text-zinc-800 text-xs">AES-256-GCM / LSB-v2 / Perlin / ECDH</span>
         </div>
       </div>
 
@@ -777,3 +836,4 @@ export default function Home() {
     </main>
   )
 }
+
