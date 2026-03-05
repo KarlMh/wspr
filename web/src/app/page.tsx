@@ -13,7 +13,6 @@ export default function Landing() {
             className="text-zinc-600 hover:text-zinc-400 text-xs transition-all tracking-widest uppercase">
             GitHub
           </a>
-          <Link href="/chat" className="text-zinc-600 hover:text-zinc-400 text-xs transition-all tracking-widest uppercase mr-4">Chat</Link>
           <Link href="/app"
             className="text-xs uppercase tracking-widest border border-zinc-600 hover:border-zinc-400 text-zinc-300 px-4 py-1.5 transition-all">
             Launch
@@ -33,18 +32,20 @@ export default function Landing() {
           <span className="text-zinc-700 text-xs uppercase tracking-widest border border-zinc-800 px-3 py-1">
             Client-Side Only
           </span>
+          <span className="text-zinc-700 text-xs uppercase tracking-widest border border-zinc-800 px-3 py-1">
+            P2P Chat
+          </span>
         </div>
 
         <h1 className="text-4xl md:text-6xl text-zinc-100 tracking-tight mb-6 max-w-3xl">
-          Hide messages inside images.
+          Hide messages. Communicate securely.
         </h1>
 
         <p className="text-zinc-500 text-sm md:text-base max-w-xl mb-10 leading-relaxed">
-          wspr is a steganography tool for people who need more than encryption.
-          Not just unreadable — invisible. Your message doesn't exist until the right key is applied.
+          wspr is a privacy toolkit for people who need more than encryption.
+          Hide messages inside images. Chat over a decentralized P2P network.
+          Not just unreadable — invisible.
         </p>
-
-        <Link href="/chat" className="text-zinc-600 hover:text-zinc-400 text-xs transition-all tracking-widest uppercase mr-4">Chat</Link>
           <Link href="/app"
           className="text-sm uppercase tracking-widest border border-zinc-400 hover:border-zinc-200 text-zinc-200 hover:text-white px-8 py-3 transition-all">
           Open wspr →
@@ -58,11 +59,11 @@ export default function Landing() {
           {[
             {
               title: 'Journalists',
-              body: 'Communicate with sources across monitored channels. An image posted publicly contains nothing — until decoded with the pre-shared key.'
+              body: 'Communicate with sources across monitored channels. Hide messages in images or use the P2P encrypted chat — no phone number, no account, no server.'
             },
             {
               title: 'Activists',
-              body: 'Operate in environments where encrypted messages invite scrutiny. wspr produces files that are statistically indistinguishable from ordinary images.'
+              body: 'Operate in environments where encrypted messages invite scrutiny. wspr produces carrier images indistinguishable from ordinary photos, and a chat that leaves no server trace.'
             },
             {
               title: 'Security researchers',
@@ -131,6 +132,10 @@ export default function Landing() {
             ['Panic wipe', 'ESC × 2 clears all state instantly'],
             ['Auto-clear', '5-minute inactivity wipe'],
             ['Zero server', 'Everything runs in the browser — nothing is transmitted'],
+            ['P2P encrypted chat', 'Nostr protocol — decentralized, no IP leak, no account'],
+            ['Keypair identity', 'Your .wspr file is your identity — portable, password-encrypted'],
+            ['Contact book', 'Save contacts by public key, scoped to your identity'],
+            ['Chat file sharing', 'Send encrypted images and files over Nostr'],
           ].map(([feature, description]) => (
             <div key={feature} className="flex gap-3 py-2 border-b border-zinc-900">
               <span className="text-zinc-500 text-xs w-48 flex-shrink-0">{feature}</span>
@@ -162,7 +167,6 @@ export default function Landing() {
       {/* Footer */}
       <footer className="border-t border-zinc-900 px-6 py-6 flex items-center justify-between">
         <span className="text-zinc-800 text-xs">wspr — steganography utility</span>
-        <Link href="/chat" className="text-zinc-600 hover:text-zinc-400 text-xs transition-all tracking-widest uppercase mr-4">Chat</Link>
           <Link href="/app"
           className="text-zinc-700 hover:text-zinc-400 text-xs transition-all uppercase tracking-widest">
           Launch tool →
