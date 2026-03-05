@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { encode, decodeChannel } from '@/lib/steg'
 import { encodeV2, decodeV2 } from '@/lib/stegv2'
 import { generateCarrier, decodeCarrier, getGenerativeCapacity } from '@/lib/gencarrier'
-import { encrypt, decrypt, encryptToBytes, decryptFromBytes, getTimeWindow } from '@/lib/crypto'
+import { encrypt, decryptString, encryptToBytes, decryptFromBytes, getTimeWindow } from '@/lib/crypto'
 import { stripExif } from '@/lib/exif'
 import { generateKeyPair, deriveSharedSecret, exportPrivateKey, importPrivateKey, generateSafetyNumber } from '@/lib/keys'
 import { encodeAudio, decodeAudio, getAudioCapacity } from '@/lib/audio'
@@ -406,7 +406,7 @@ export default function Home() {
       addLog('Extracting from audio...')
       try {
         const raw = decodeAudio(audioBufferRef.current)
-        const result = await decrypt(raw, pw, kf, ss)
+        const result = await decryptString(raw, pw, kf, ss)
         if (result && result.message.trim().length > 0) {
           showDecodedMessage(result.message, result.intact)
           addLog(result.intact ? 'Done. Integrity verified.' : 'Done. WARNING: Integrity check failed.')
@@ -467,7 +467,7 @@ export default function Home() {
       const rawReal = decodeChannel(imageData, 0, scatterKey)
       const rawDecoy = decodeChannel(imageData, 1, scatterKey)
 
-      const realResult = await decrypt(rawReal, pw, kf, ss)
+      const realResult = await decryptString(rawReal, pw, kf, ss)
       if (realResult !== null && realResult.message.trim().length > 0) {
         showDecodedMessage(realResult.message, realResult.intact)
         addLog(realResult.intact ? 'Done. Integrity verified. Output visible for 30s.' : 'Done. WARNING: Integrity check failed.')
@@ -475,7 +475,7 @@ export default function Home() {
         return
       }
 
-      const decoyResult = await decrypt(rawDecoy, pw, kf, ss)
+      const decoyResult = await decryptString(rawDecoy, pw, kf, ss)
       if (decoyResult !== null && decoyResult.message.trim().length > 0) {
         showDecodedMessage(decoyResult.message, decoyResult.intact)
         addLog(decoyResult.intact ? 'Done. Integrity verified.' : 'Done. WARNING: Integrity check failed.')
