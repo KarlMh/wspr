@@ -354,16 +354,6 @@ export default function Home() {
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
         const encoded = encodeV2(imageData, cipherBytes, scatterKey)
         ctx.putImageData(encoded, 0, 0)
-      } else {
-        const realEncrypted = await encrypt(message.trim(), pw, kf, ss)
-        const decoyEncrypted = (showDecoy && decoyMessage.trim())
-          ? await encrypt(decoyMessage.trim(), decoyKeyfile ? '' : decoyPassword.trim(), decoyKeyfile)
-          : await encrypt('', 'no-decoy-placeholder')
-        addLog('Encoding into image...')
-        const ctx = canvas.getContext('2d')!
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        const encoded = encode(imageData, realEncrypted, decoyEncrypted, scatterKey)
-        ctx.putImageData(encoded, 0, 0)
       }
 
       addLog('Stripping metadata...')
