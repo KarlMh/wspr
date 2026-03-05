@@ -41,7 +41,6 @@ async function buildKeyMaterial(
   const hourStamp = getHourStamp(hourOffset)
   const enc = new TextEncoder()
 
-  // ECDH shared secret takes priority
   if (sharedSecret && sharedSecret.length > 0) {
     const stampBytes = enc.encode(hourStamp)
     const combined = new Uint8Array(sharedSecret.length + stampBytes.length)

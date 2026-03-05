@@ -1,10 +1,6 @@
-// Audio steganography using WAV files
-// WAV is uncompressed — LSB encoding survives perfectly
-// We generate synthetic white noise as the carrier — no microphone needed
-
 const DELIMITER = '<<<END>>>'
 const SAMPLE_RATE = 44100
-const DURATION_SECONDS = 10 // 10 seconds of audio = ~441000 samples
+const DURATION_SECONDS = 10
 
 function textToBits(text: string): number[] {
   return (text + DELIMITER).split('').flatMap(char => {
@@ -25,7 +21,6 @@ function bitsToText(bits: number[]): string {
   return text
 }
 
-// Generate WAV file as ArrayBuffer
 function generateWAV(samples: Int16Array): ArrayBuffer {
   const numSamples = samples.length
   const numChannels = 1
@@ -47,7 +42,7 @@ function generateWAV(samples: Int16Array): ArrayBuffer {
   writeString(8, 'WAVE')
   writeString(12, 'fmt ')
   view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true) // PCM
+  view.setUint16(20, 1, true)
   view.setUint16(22, numChannels, true)
   view.setUint32(24, SAMPLE_RATE, true)
   view.setUint32(28, byteRate, true)
@@ -63,10 +58,9 @@ function generateWAV(samples: Int16Array): ArrayBuffer {
   return buffer
 }
 
-// Parse WAV and return samples
 function parseWAV(buffer: ArrayBuffer): Int16Array {
   const view = new DataView(buffer)
-  const dataOffset = 44 // Standard WAV header size
+  const dataOffset = 44
   const numSamples = (buffer.byteLength - dataOffset) / 2
   const samples = new Int16Array(numSamples)
   for (let i = 0; i < numSamples; i++) {
@@ -75,12 +69,10 @@ function parseWAV(buffer: ArrayBuffer): Int16Array {
   return samples
 }
 
-// Generate white noise carrier
 function generateNoise(): Int16Array {
   const numSamples = SAMPLE_RATE * DURATION_SECONDS
   const samples = new Int16Array(numSamples)
   for (let i = 0; i < numSamples; i++) {
-    // Low amplitude noise — quiet, not alarming
     samples[i] = Math.floor((Math.random() - 0.5) * 1000)
   }
   return samples
@@ -94,7 +86,6 @@ export function encodeAudio(message: string): Blob {
     throw new Error('Message too long for audio carrier.')
   }
 
-  // Hide bits in LSB of each sample
   for (let i = 0; i < bits.length; i++) {
     samples[i] = (samples[i] & ~1) | bits[i]
   }

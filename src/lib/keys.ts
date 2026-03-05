@@ -1,10 +1,7 @@
-// ECDH key exchange using Web Crypto API
-// P-256 curve — widely supported, strong enough for this use case
-
 export type KeyPair = {
   publicKey: CryptoKey
   privateKey: CryptoKey
-  publicKeyRaw: string // base64 encoded for sharing
+  publicKeyRaw: string
 }
 
 export async function generateKeyPair(): Promise<KeyPair> {
@@ -28,7 +25,6 @@ export async function deriveSharedSecret(
   privateKey: CryptoKey,
   theirPublicKeyRaw: string
 ): Promise<Uint8Array> {
-  // Import their public key
   const theirPublicKeyBytes = Uint8Array.from(
     atob(theirPublicKeyRaw),
     c => c.charCodeAt(0)
@@ -42,7 +38,6 @@ export async function deriveSharedSecret(
     []
   )
 
-  // Derive shared bits
   const sharedBits = await crypto.subtle.deriveBits(
     { name: 'ECDH', public: theirPublicKey },
     privateKey,
@@ -66,4 +61,24 @@ export async function importPrivateKey(raw: string): Promise<CryptoKey> {
     true,
     ['deriveKey', 'deriveBits']
   )
+}
+
+export async function generateSafetyNumber(
+  myPublicKeyRaw: string,
+  theirPublicKeyRaw: string
+): Promise<string> {
+  const enc = new TextEncoder()
+  const keys = [myPublicKeyRaw, theirPublicKeyRaw].sort()
+  const combined = enc.encode(keys[0] + keys[1])
+  const hashBuffer = await crypto.subtle.digest('SHA-256', combined)
+  const hashArray = new Uint8Array(hashBuffer)
+
+  let number = ''
+  for (let i = 0; i < 5; i++) {
+    const chunk = ((hashArray[i * 2] << 8) | hashArray[i * 2 + 1]) % 100000
+    number += chunk.toString().padStart(5, '0')
+    if (i < 4) number += ' '
+  }
+
+  return number
 }
