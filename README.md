@@ -1,4 +1,4 @@
-# Whisper Network
+# wspr
 
 Hide encrypted messages inside ordinary images using steganography. No servers. No accounts. No traces.
 
