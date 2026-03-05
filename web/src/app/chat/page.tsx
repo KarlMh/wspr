@@ -17,6 +17,7 @@ export default function ChatPage() {
   const [myPrivateKeyRaw, setMyPrivateKeyRaw] = useState('')
   const [theirPublicKey, setTheirPublicKey] = useState('')
   const [sharedSecret, setSharedSecret] = useState<Uint8Array | undefined>()
+  const sharedSecretRef = useRef<Uint8Array | undefined>()
   const [safetyNumber, setSafetyNumber] = useState('')
   const [safetyVerified, setSafetyVerified] = useState(false)
 
@@ -65,6 +66,7 @@ export default function ChatPage() {
       const secret = await deriveSharedSecret(privateKey, theirPublicKey.trim())
       const safety = await generateSafetyNumber(myPublicKey, theirPublicKey.trim())
       setSharedSecret(secret)
+      sharedSecretRef.current = secret
       setSafetyNumber(safety)
 
       addLog('Connecting...twork...')
@@ -72,8 +74,9 @@ export default function ChatPage() {
         myPublicKey,
         theirPublicKey.trim(),
         async (wakuMsg: WakuMessage) => {
-          if (!secret) return
-          const plaintext = await decryptMessage(wakuMsg.ciphertext, secret, wakuMsg.id)
+          const currentSecret = sharedSecretRef.current
+          if (!currentSecret) return
+          const plaintext = await decryptMessage(wakuMsg.ciphertext, currentSecret, wakuMsg.id)
           if (!plaintext) return
 
           const stored: StoredMessage = {
