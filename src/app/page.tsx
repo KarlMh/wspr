@@ -10,7 +10,6 @@ import { encodeAudio, decodeAudio, getAudioCapacity } from '@/lib/audio'
 
 type KeyMode = 'password' | 'keyfile' | 'ecdh'
 type CarrierMode = 'image' | 'image-gen' | 'audio'
-type StegMode = 'v1' | 'v2'
 
 export default function Home() {
   const [fileStatus, setFileStatus] = useState<'none' | 'loading' | 'ready'>('none')
@@ -18,7 +17,6 @@ export default function Home() {
   const [fileSize, setFileSize] = useState(0)
   const [imageDims, setImageDims] = useState({ w: 0, h: 0 })
   const [carrierMode, setCarrierMode] = useState<CarrierMode>('image')
-  const [stegMode, setStegMode] = useState<StegMode>('v2')
 
   const [keyMode, setKeyMode] = useState<KeyMode>('password')
   const [password, setPassword] = useState('')
@@ -73,7 +71,6 @@ export default function Home() {
     setFileSize(0)
     setImageDims({ w: 0, h: 0 })
     setCarrierMode('image')
-    setStegMode('v2')
     setPassword('')
     setKeyfile(undefined)
     setKeyfileName('')
@@ -351,8 +348,6 @@ export default function Home() {
     try {
       const scatterKey = getScatterKey(pw, kf, ss)
 
-      if (stegMode === 'v2') {
-        // Mode A v2 — hardened LSB
         const cipherBytes = await encryptToBytes(message.trim(), pw, kf, ss)
         addLog('Encoding with hardened LSB...')
         const ctx = canvas.getContext('2d')!
@@ -360,7 +355,6 @@ export default function Home() {
         const encoded = encodeV2(imageData, cipherBytes, scatterKey)
         ctx.putImageData(encoded, 0, 0)
       } else {
-        // Mode A v1 — original
         const realEncrypted = await encrypt(message.trim(), pw, kf, ss)
         const decoyEncrypted = (showDecoy && decoyMessage.trim())
           ? await encrypt(decoyMessage.trim(), decoyKeyfile ? '' : decoyPassword.trim(), decoyKeyfile)
@@ -449,7 +443,6 @@ export default function Home() {
         return
       }
 
-      // Try v2 first, fall back to v1
       addLog('Trying hardened decode...')
       const cipherBytes = decodeV2(imageData, scatterKey)
       if (cipherBytes) {
@@ -462,7 +455,6 @@ export default function Home() {
         }
       }
 
-      // Fall back to v1
       addLog('Trying standard decode...')
       const rawReal = decodeChannel(imageData, 0, scatterKey)
       const rawDecoy = decodeChannel(imageData, 1, scatterKey)
@@ -539,13 +531,7 @@ export default function Home() {
             </div>
             {carrierMode === 'image' && (
               <div className="flex gap-1 mt-2">
-                <button onClick={() => setStegMode('v2')}
-                  className={`flex-1 text-xs py-1 border transition-all ${stegMode === 'v2' ? 'border-zinc-600 text-zinc-400' : 'border-zinc-900 text-zinc-700 hover:border-zinc-800'}`}>
-                  Hardened
                 </button>
-                <button onClick={() => setStegMode('v1')}
-                  className={`flex-1 text-xs py-1 border transition-all ${stegMode === 'v1' ? 'border-zinc-600 text-zinc-400' : 'border-zinc-900 text-zinc-700 hover:border-zinc-800'}`}>
-                  Standard
                 </button>
               </div>
             )}
@@ -690,8 +676,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Deniability — image v1 only */}
-          {carrierMode === 'image' && stegMode === 'v1' && (
             <div className="border-b border-zinc-800">
               <button onClick={() => setShowDecoy(v => !v)}
                 className="w-full text-left px-4 py-3 text-zinc-700 text-xs hover:text-zinc-500 transition-all uppercase tracking-widest">
