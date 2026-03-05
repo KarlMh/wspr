@@ -1,6 +1,5 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { encode, decodeChannel } from '@/lib/steg'
 import { encodeV2, decodeV2 } from '@/lib/stegv2'
 import { generateCarrier, decodeCarrier, getGenerativeCapacity } from '@/lib/gencarrier'
 import { encrypt, decryptString, encryptToBytes, decryptFromBytes, getTimeWindow } from '@/lib/crypto'
@@ -48,8 +47,6 @@ export default function Home() {
   const [log, setLog] = useState<string[]>([])
   const [status, setStatus] = useState<'idle' | 'ready' | 'processing' | 'done' | 'cleared'>('idle')
   const [timeWindow, setTimeWindow] = useState<{ current: string; expiresIn: number } | null>(null)
-
-  // Preview canvas for generated carrier
   const [showPreview, setShowPreview] = useState(false)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -223,10 +220,7 @@ export default function Home() {
     img.src = URL.createObjectURL(f)
   }
 
-  const handleKeyfile = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    isDecoy = false
-  ) => {
+  const handleKeyfile = async (e: React.ChangeEvent<HTMLInputElement>, isDecoy = false) => {
     const f = e.target.files?.[0]
     if (!f) return
     const buf = await f.arrayBuffer()
@@ -271,7 +265,6 @@ export default function Home() {
 
     const { pw, kf, ss } = getKeyParams()
 
-    // Audio mode
     if (carrierMode === 'audio') {
       setStatus('processing')
       addLog('Encrypting payload...')
@@ -294,25 +287,19 @@ export default function Home() {
       return
     }
 
-    // Generative carrier mode (Mode B)
     if (carrierMode === 'image-gen') {
       setStatus('processing')
       addLog('Encrypting payload...')
       try {
         const scatterKey = getScatterKey(pw, kf, ss)
         const cipherBytes = await encryptToBytes(message.trim(), pw, kf, ss)
-
         addLog('Generating carrier image...')
         const imageData = generateCarrier(cipherBytes, scatterKey)
-
-        // Draw to canvas then export
         const canvas = canvasRef.current!
         canvas.width = imageData.width
         canvas.height = imageData.height
         const ctx = canvas.getContext('2d')!
         ctx.putImageData(imageData, 0, 0)
-
-        // Show preview
         const preview = previewCanvasRef.current
         if (preview) {
           preview.width = imageData.width
@@ -320,16 +307,14 @@ export default function Home() {
           preview.getContext('2d')?.putImageData(imageData, 0, 0)
           setShowPreview(true)
         }
-
         const blob = await stripExif(canvas)
         const a = document.createElement('a')
         a.href = URL.createObjectURL(blob)
         a.download = (outputName.trim() || 'texture') + '.png'
         a.click()
-
         setMessage('')
         setPassword('')
-        addLog(`Saved: ${outputName.trim() || 'texture'}.png — generative carrier, statistically clean`)
+        addLog(`Saved: ${outputName.trim() || 'texture'}.png — generative carrier`)
         setStatus('done')
       } catch (e: unknown) {
         addLog(`ERROR: ${e instanceof Error ? e.message : 'Unknown error'}`)
@@ -338,31 +323,24 @@ export default function Home() {
       return
     }
 
-    // Image mode
     const canvas = canvasRef.current
     if (!canvas || fileStatus !== 'ready') return addLog('ERROR: No image loaded.')
-
     setStatus('processing')
     addLog('Encrypting payload...')
-
     try {
       const scatterKey = getScatterKey(pw, kf, ss)
-
-        const cipherBytes = await encryptToBytes(message.trim(), pw, kf, ss)
-        addLog('Encoding with hardened LSB...')
-        const ctx = canvas.getContext('2d')!
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        const encoded = encodeV2(imageData, cipherBytes, scatterKey)
-        ctx.putImageData(encoded, 0, 0)
-      }
-
+      const cipherBytes = await encryptToBytes(message.trim(), pw, kf, ss)
+      addLog('Encoding with hardened LSB...')
+      const ctx = canvas.getContext('2d')!
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const encoded = encodeV2(imageData, cipherBytes, scatterKey)
+      ctx.putImageData(encoded, 0, 0)
       addLog('Stripping metadata...')
       const blob = await stripExif(canvas)
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
       a.download = (outputName.trim() || 'image') + '.png'
       a.click()
-
       setMessage('')
       setPassword('')
       setDecoyMessage('')
@@ -383,7 +361,6 @@ export default function Home() {
     const { pw, kf, ss } = getKeyParams()
     const scatterKey = getScatterKey(pw, kf, ss)
 
-    // Audio decode
     if (carrierMode === 'audio') {
       if (!audioBufferRef.current) return addLog('ERROR: No audio loaded.')
       setStatus('processing')
@@ -415,7 +392,6 @@ export default function Home() {
       const ctx = canvas.getContext('2d')!
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
 
-      // Try generative decode first if in gen mode
       if (carrierMode === 'image-gen') {
         addLog('Decoding generative carrier...')
         const cipherBytes = decodeCarrier(imageData, scatterKey)
@@ -433,7 +409,6 @@ export default function Home() {
         return
       }
 
-      addLog('Trying hardened decode...')
       const cipherBytes = decodeV2(imageData, scatterKey)
       if (cipherBytes) {
         const result = await decryptFromBytes(cipherBytes, pw, kf, ss)
@@ -443,26 +418,6 @@ export default function Home() {
           setStatus('done')
           return
         }
-      }
-
-      addLog('Trying standard decode...')
-      const rawReal = decodeChannel(imageData, 0, scatterKey)
-      const rawDecoy = decodeChannel(imageData, 1, scatterKey)
-
-      const realResult = await decryptString(rawReal, pw, kf, ss)
-      if (realResult !== null && realResult.message.trim().length > 0) {
-        showDecodedMessage(realResult.message, realResult.intact)
-        addLog(realResult.intact ? 'Done. Integrity verified. Output visible for 30s.' : 'Done. WARNING: Integrity check failed.')
-        setStatus('done')
-        return
-      }
-
-      const decoyResult = await decryptString(rawDecoy, pw, kf, ss)
-      if (decoyResult !== null && decoyResult.message.trim().length > 0) {
-        showDecodedMessage(decoyResult.message, decoyResult.intact)
-        addLog(decoyResult.intact ? 'Done. Integrity verified.' : 'Done. WARNING: Integrity check failed.')
-        setStatus('done')
-        return
       }
 
       addLog('No data found.')
@@ -482,9 +437,7 @@ export default function Home() {
   const capacityUsed = capacity > 0 ? Math.min(100, (message.length / capacity) * 100) : 0
 
   return (
-    <main
-      className="min-h-screen bg-zinc-950 text-zinc-300 flex flex-col"
-      style={{ fontFamily: 'monospace' }}>
+    <main className="min-h-screen bg-zinc-950 text-zinc-300 flex flex-col" style={{ fontFamily: 'monospace' }}>
 
       <div className="border-b border-zinc-800 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -506,7 +459,6 @@ export default function Home() {
       <div className="flex flex-1 overflow-hidden">
         <div className="w-96 border-r border-zinc-800 flex flex-col overflow-y-auto">
 
-          {/* Carrier mode */}
           <div className="border-b border-zinc-800 p-4">
             <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Carrier</p>
             <div className="flex gap-1">
@@ -519,54 +471,45 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            {carrierMode === 'image' && (
-              <div className="flex gap-1 mt-2">
-                </button>
-                </button>
-              </div>
-            )}
             {carrierMode === 'image-gen' && (
               <p className="text-zinc-700 text-xs mt-2">Generates synthetic Perlin noise image. No carrier photo needed. Statistically undetectable.</p>
             )}
           </div>
 
-          {/* File input — not needed for generative encode */}
-          {(carrierMode === 'image' || carrierMode === 'audio' || (carrierMode === 'image-gen')) && (
-            <div className="border-b border-zinc-800 p-4">
-              <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">
-                {carrierMode === 'audio' ? 'Input Audio (decode)' :
-                 carrierMode === 'image-gen' ? 'Input Image (decode only)' :
-                 'Input Image'}
-              </p>
-              <label className={`block border p-4 cursor-pointer transition-all text-center
-                ${fileStatus === 'ready' ? 'border-zinc-600 bg-zinc-900' :
-                  fileStatus === 'loading' ? 'border-zinc-700' :
-                  'border-zinc-800 hover:border-zinc-700'}`}>
-                {fileStatus === 'none' && (
+          <div className="border-b border-zinc-800 p-4">
+            <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">
+              {carrierMode === 'audio' ? 'Input Audio (decode only)' :
+               carrierMode === 'image-gen' ? 'Input Image (decode only)' : 'Input Image'}
+            </p>
+            <label className={`block border p-4 cursor-pointer transition-all text-center
+              ${fileStatus === 'ready' ? 'border-zinc-600 bg-zinc-900' :
+                fileStatus === 'loading' ? 'border-zinc-700' :
+                'border-zinc-800 hover:border-zinc-700'}`}>
+              {fileStatus === 'none' && (
+                <span className="text-zinc-600 text-xs">
+                  {carrierMode === 'audio' ? 'Select WAV to decode' :
+                   carrierMode === 'image-gen' ? 'Select generated PNG to decode' : 'Select PNG file'}
+                </span>
+              )}
+              {fileStatus === 'loading' && <span className="text-zinc-500 text-xs">Loading...</span>}
+              {fileStatus === 'ready' && (
+                <div>
+                  <span className="text-zinc-400 text-xs block truncate">{fileName}</span>
                   <span className="text-zinc-600 text-xs">
-                    {carrierMode === 'audio' ? 'Select WAV to decode' :
-                     carrierMode === 'image-gen' ? 'Select generated PNG to decode' :
-                     'Select PNG file'}
+                    {carrierMode !== 'audio' ? `${imageDims.w}x${imageDims.h} — ` : ''}
+                    {(fileSize / 1024).toFixed(1)} KB
                   </span>
-                )}
-                {fileStatus === 'loading' && <span className="text-zinc-500 text-xs">Loading...</span>}
-                {fileStatus === 'ready' && (
-                  <div>
-                    <span className="text-zinc-400 text-xs block truncate">{fileName}</span>
-                    <span className="text-zinc-600 text-xs">
-                      {carrierMode !== 'audio' ? `${imageDims.w}x${imageDims.h} — ` : ''}
-                      {(fileSize / 1024).toFixed(1)} KB
-                    </span>
-                  </div>
-                )}
-                <input ref={fileInputRef} type="file"
-                  accept={carrierMode === 'audio' ? 'audio/wav' : 'image/png'}
-                  onChange={handleFile} className="hidden" />
-              </label>
-            </div>
-          )}
+                </div>
+              )}
+              <input ref={fileInputRef} type="file"
+                accept={carrierMode === 'audio' ? 'audio/wav' : 'image/png'}
+                onChange={handleFile} className="hidden" />
+            </label>
+            {carrierMode === 'audio' && (
+              <p className="text-zinc-800 text-xs mt-2">For encoding, audio carrier is generated automatically.</p>
+            )}
+          </div>
 
-          {/* Key method */}
           <div className="border-b border-zinc-800 p-4">
             <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Key Method</p>
             <div className="flex gap-1 mb-3">
@@ -644,7 +587,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* Payload */}
           <div className="border-b border-zinc-800 p-4">
             <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">
               Payload <span className="text-zinc-800 normal-case">(leave empty to decode)</span>
@@ -655,7 +597,6 @@ export default function Home() {
               className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 resize-none h-28 placeholder-zinc-800" />
           </div>
 
-          {/* Output filename */}
           <div className="border-b border-zinc-800 p-4">
             <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Output Filename</p>
             <div className="flex items-center gap-1">
@@ -666,6 +607,7 @@ export default function Home() {
             </div>
           </div>
 
+          {carrierMode === 'image' && (
             <div className="border-b border-zinc-800">
               <button onClick={() => setShowDecoy(v => !v)}
                 className="w-full text-left px-4 py-3 text-zinc-700 text-xs hover:text-zinc-500 transition-all uppercase tracking-widest">
@@ -693,7 +635,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Actions */}
           <div className="p-4 flex gap-2">
             <button onClick={handleDecode}
               disabled={status === 'processing' ||
@@ -712,16 +653,12 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Right panel */}
         <div className="flex-1 flex flex-col min-w-0">
 
-          {/* Preview canvas for generative mode */}
           {showPreview && (
             <div className="border-b border-zinc-800 p-4">
               <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Generated carrier</p>
-              <canvas ref={previewCanvasRef}
-                className="w-full max-w-xs"
-                style={{ imageRendering: 'pixelated' }} />
+              <canvas ref={previewCanvasRef} className="w-full max-w-xs" style={{ imageRendering: 'pixelated' }} />
             </div>
           )}
 
@@ -802,7 +739,7 @@ export default function Home() {
               window {timeWindow.expiresIn}m
             </span>
           )}
-          <span className="text-zinc-800 text-xs">AES-256-GCM / LSB-v2 / Perlin / ECDH</span>
+          <span className="text-zinc-800 text-xs">AES-256-GCM / LSB-hardened / Perlin / ECDH</span>
         </div>
       </div>
 
@@ -810,4 +747,3 @@ export default function Home() {
     </main>
   )
 }
-
