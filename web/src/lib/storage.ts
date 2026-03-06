@@ -93,23 +93,17 @@ function channelKey(myPubKey: string, theirPubKey: string): string {
   return `${MESSAGES_PREFIX}${hash.toString(16)}`
 }
 
+// Messages are NOT persisted — session only, cleared on lock/logout
 export function loadChannelMessages(myPubKey: string, theirPubKey: string): StoredMessage[] {
-  try {
-    const raw = localStorage.getItem(channelKey(myPubKey, theirPubKey))
-    return raw ? JSON.parse(raw) : []
-  } catch { return [] }
+  return [] // No persistence — messages live in memory only
 }
 
 export function saveChannelMessage(myPubKey: string, theirPubKey: string, msg: StoredMessage): void {
-  const msgs = loadChannelMessages(myPubKey, theirPubKey)
-  if (msgs.find(m => m.id === msg.id)) return // dedupe
-  msgs.push(msg)
-  const trimmed = msgs.slice(-MAX_MESSAGES)
-  localStorage.setItem(channelKey(myPubKey, theirPubKey), JSON.stringify(trimmed))
+  // No-op — messages not saved to disk
 }
 
 export function clearChannelMessages(myPubKey: string, theirPubKey: string): void {
-  localStorage.removeItem(channelKey(myPubKey, theirPubKey))
+  // No-op
 }
 
 // Nostr cross-device sync — export identity + contacts as JSON

@@ -93,19 +93,16 @@ export class CallManager {
             // If we're already calling and receive a ring, we become the answerer
             if (signal.type === 'ring') {
               if (this.state === 'calling') {
-                // Mutual call — determine who is initiator by pubkey comparison
-                // Lower pubkey = initiator, higher = answerer
-                const weAreInitiator = myPubKey < theirPubKey
-                if (!weAreInitiator) {
-                  // We become the answerer
+                // Mutual call — lower pubkey becomes answerer, higher stays initiator
+                if (myPubKey < theirPubKey) {
+                  // We become the answerer — destroy our initiator peer
+                  if (this.peer) { this.peer.destroy(); this.peer = null }
                   this.callId = signal.callId
                   await this._subscribeToCallSignals(myPubKey, sharedSecret)
-                  // Destroy current peer, recreate as non-initiator
-                  if (this.peer) { this.peer.destroy(); this.peer = null }
                   this._createPeer(false, myPubKey, sharedSecret)
-                  this.onStateChange?.('connected'); this.state = 'connected'
+                  this._setState('calling') // stay in calling until stream arrives
                 }
-                // If we are initiator, ignore their ring — they'll answer ours
+                // Higher pubkey stays as initiator — ignores incoming ring
               } else if (this.state === 'idle') {
                 this.callId = signal.callId
                 this.onIncomingCall?.(signal.callId, signal.from)
