@@ -188,7 +188,12 @@ export default function ChatPage() {
       const safety = await generateSafetyNumber(identity.publicKey, contact.publicKey)
       setSharedSecret(secret); sharedSecretRef.current = secret; setSafetyNumber(safety)
       const history = loadChannelMessages(identity.publicKey, contact.publicKey)
-      setMessages(history)
+      // Restore plaintext for own messages from stored plaintext field
+      const restoredHistory = history.map(m => ({
+        ...m,
+        plaintext: (m as StoredMessage & { plaintext?: string }).plaintext || (m.mine ? undefined : undefined)
+      }))
+      setMessages(restoredHistory)
       onMessageRef.current = async (nostrMsg: NostrMessage) => {
         const currentSecret = sharedSecretRef.current; if (!currentSecret) return
         const plaintext = await decryptMessage(nostrMsg.ciphertext, currentSecret, nostrMsg.id)
