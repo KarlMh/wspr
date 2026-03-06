@@ -231,7 +231,10 @@ export default function ChatPage() {
           if (callTimerRef.current) clearInterval(callTimerRef.current)
           setCallDuration(0)
           setRemoteStream(null)
-          setTimeout(() => setShowCall(false), 1000)
+          setTimeout(() => {
+            setShowCall(false)
+            setCallState('idle')
+          }, 1500)
         }
       }
       callManager.onRemoteStream = (stream) => {
