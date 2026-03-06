@@ -385,11 +385,12 @@ export class CallManager {
     this.seenSignals.clear()
     this.signalBuffer = []
     this._setState('ended')
-    // Auto-restart ring listener after call ends
+    console.log("[CALL] cleanup done, restarting listener in 1.5s, keys:", this.listenMyPubKey.slice(0,8), this.listenTheirPubKey.slice(0,8))
     if (this.listenMyPubKey && this.listenSharedSecret && this.listenTheirPubKey) {
       setTimeout(() => {
+        console.log("[CALL] restarting listener now")
         this.listenForCalls(this.listenMyPubKey, this.listenSharedSecret!, this.listenTheirPubKey)
-      }, 1000)
+      }, 1500)
     }
   }
 
