@@ -145,12 +145,19 @@ export default function ChatPage() {
   }
 
   const handleLock = () => {
-    clearSessionIdentity(); nostrClient.disconnect()
+    clearSessionIdentity(); nostrClient.disconnect(); callManager.hangup('','',new Uint8Array())
+    // Delete all chat history on lock — no traces left
+    const keys: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i); if (k?.startsWith('wspr_msgs_') || k?.startsWith('wspr_contacts_')) keys.push(k!)
+    }
+    keys.forEach(k => localStorage.removeItem(k))
     setIdentity(null); setContacts([]); setActiveContact(null)
     setSharedSecret(undefined); sharedSecretRef.current = undefined
     setMessages([]); setUnlockPassword(''); setUnlockPassword2('')
     setPendingFile(null); setPendingFileName('')
-    setConnected(false); setNetworkStatus('offline'); setScreen('unlock')
+    setConnected(false); setNetworkStatus('offline')
+    setCallState('idle'); setShowCall(false); setScreen('unlock')
   }
 
   const handleAddContact = () => {

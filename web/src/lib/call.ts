@@ -1,8 +1,3 @@
-// WebRTC P2P calls — signaling over Nostr, no STUN server, zero IP leak
-// Fresh ephemeral Nostr keypair per call — unlinkable to chat identity
-// Media: DTLS-SRTP (WebRTC built-in)
-// Signaling: ECDH encrypted + random delay + ephemeral keys
-
 import SimplePeer from 'simple-peer'
 import { generateSecretKey, getPublicKey, finalizeEvent, SimplePool } from 'nostr-tools'
 import type { Filter } from 'nostr-tools'
@@ -10,74 +5,79 @@ import { encryptMessage, decryptMessage } from './chat-crypto'
 
 const CALL_RELAYS = [
   'wss://relay.damus.io',
-  'wss://relay.nostr.band',
   'wss://nos.lol',
   'wss://offchain.pub',
   'wss://relay.primal.net',
+  'wss://nostr.wine',
 ]
 
-const CALL_KIND = 20002 // Different kind from chat
+const CALL_KIND = 20002
 
 export type CallState = 'idle' | 'calling' | 'receiving' | 'connected' | 'ended'
 
 export type CallSignal = {
   type: 'offer' | 'answer' | 'ice' | 'hangup' | 'ring'
-  data?: string // JSON stringified SimplePeer signal
+  data?: string
   callId: string
   from: string
 }
 
-function getCallTag(myPubKey: string, theirPubKey: string, callId: string): string {
+function getRingTag(myPubKey: string, theirPubKey: string): string {
   const sorted = [myPubKey, theirPubKey].sort()
   let hash = 0
-  const str = sorted[0] + sorted[1] + callId
+  const str = 'ring' + sorted[0] + sorted[1]
   for (let i = 0; i < str.length; i++) {
     hash = ((hash << 5) - hash + str.charCodeAt(i)) >>> 0
   }
-  return `wspr_call_${hash.toString(16)}`
+  return `wc_${hash.toString(16)}`
 }
 
-// Random delay 0-2s to break timing correlation
+function getSignalTag(callId: string): string {
+  let hash = 0
+  for (let i = 0; i < callId.length; i++) {
+    hash = ((hash << 5) - hash + callId.charCodeAt(i)) >>> 0
+  }
+  return `ws_${hash.toString(16)}`
+}
+
 function randomDelay(): Promise<void> {
-  return new Promise(r => setTimeout(r, Math.random() * 2000))
+  return new Promise(r => setTimeout(r, Math.random() * 1000))
 }
 
 export class CallManager {
-  private peer: SimplePeer.Instance | null = null
-  private pool: SimplePool | null = null
-  private sub: { close: () => void } | null = null
+  // Two separate pools — listener never gets closed during calls
+  private listenPool: SimplePool | null = null
+  private callPool: SimplePool | null = null
+  private listenSub: { close: () => void } | null = null
+  private callSub: { close: () => void } | null = null
   private ephemeralPrivKey: Uint8Array | null = null
-  private ephemeralPubKey: string = ''
-  private callTag: string = ''
+  private peer: SimplePeer.Instance | null = null
   private callId: string = ''
-  private sharedSecret: Uint8Array | null = null
-  private state: CallState = 'idle'
   private localStream: MediaStream | null = null
+  private state: CallState = 'idle'
 
-  // Callbacks
   onStateChange: ((state: CallState) => void) | null = null
   onRemoteStream: ((stream: MediaStream) => void) | null = null
   onIncomingCall: ((callId: string, from: string) => void) | null = null
   onError: ((err: string) => void) | null = null
 
+  // Called once when chat connects — stays open permanently
   async listenForCalls(
     myPubKey: string,
     sharedSecret: Uint8Array,
     theirPubKey: string
   ): Promise<void> {
-    this.sharedSecret = sharedSecret
-    // Use separate pool for listening so it doesn't get closed during calls
-    const listenPool = new SimplePool()
+    // Close previous listener if any
+    if (this.listenSub) { this.listenSub.close(); this.listenSub = null }
+    if (this.listenPool) { this.listenPool.close(CALL_RELAYS); this.listenPool = null }
 
-    // Listen for incoming ring signals
-    const filter = {
-      kinds: [CALL_KIND],
-      since: Math.floor(Date.now() / 1000) - 30,
-    }
-    const tag = getCallTag(myPubKey, theirPubKey, "ring")
-    ;(filter as Record<string, unknown>)['#t'] = [tag]
+    this.listenPool = new SimplePool()
+    const ringTag = getRingTag(myPubKey, theirPubKey)
 
-    this.sub = listenPool.subscribeMany(
+    const filter = { kinds: [CALL_KIND], since: Math.floor(Date.now() / 1000) - 5 }
+    ;(filter as Record<string, unknown>)['#t'] = [ringTag]
+
+    this.listenSub = this.listenPool.subscribeMany(
       CALL_RELAYS,
       filter as unknown as Filter,
       {
@@ -86,10 +86,10 @@ export class CallManager {
             const decrypted = await decryptMessage(event.content, sharedSecret, event.id)
             if (!decrypted) return
             const signal: CallSignal = JSON.parse(decrypted)
-            if (signal.type === 'ring' && signal.from !== myPubKey) {
-              this.callId = signal.callId
-              if (this.onIncomingCall) this.onIncomingCall(signal.callId, signal.from)
-            }
+            if (signal.type !== 'ring') return
+            if (signal.from === myPubKey) return // ignore own ring
+            this.callId = signal.callId
+            this.onIncomingCall?.(signal.callId, signal.from)
           } catch { /* not for us */ }
         }
       }
@@ -102,78 +102,29 @@ export class CallManager {
     sharedSecret: Uint8Array,
     video = false
   ): Promise<void> {
-    this.sharedSecret = sharedSecret
     this.callId = crypto.randomUUID()
-    this.callTag = getCallTag(myPubKey, theirPubKey, this.callId)
-
-    // Fresh ephemeral keypair for this call
     this.ephemeralPrivKey = generateSecretKey()
-    this.ephemeralPubKey = getPublicKey(this.ephemeralPrivKey)
-
     this._setState('calling')
-    this.pool = new SimplePool()
 
-    // Get local media
+    // Get media first
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video
-      })
+      this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video })
     } catch {
       this.onError?.('Microphone access denied.')
       this._setState('ended')
       return
     }
 
-    // Subscribe to answer signals
-    await this._subscribeToSignals(myPubKey, theirPubKey, sharedSecret)
+    // Subscribe to answer/ice signals
+    await this._subscribeToCallSignals(myPubKey, sharedSecret)
 
-    // Create peer as initiator
-    this.peer = new SimplePeer({
-      initiator: true,
-      stream: this.localStream,
-      trickle: true,
-      // No STUN — rely on host candidates only (local network)
-      // Falls back to relay if needed
-      config: {
-        iceServers: [
-          // Cloudflare STUN — free, privacy-respecting
-          { urls: 'stun:stun.cloudflare.com:3478' },
-          // Open Relay TURN — free fallback
-          {
-            urls: 'turn:openrelay.metered.ca:80',
-            username: 'openrelayproject',
-            credential: 'openrelayproject'
-          }
-        ]
-      }
-    })
+    // Create initiator peer
+    this._createPeer(true, myPubKey, theirPubKey, sharedSecret)
 
-    this.peer.on('signal', async (data) => {
-      await randomDelay()
-      await this._sendSignal(myPubKey, theirPubKey, sharedSecret, {
-        type: data.type === 'offer' ? 'offer' : 'ice',
-        data: JSON.stringify(data),
-        callId: this.callId,
-        from: myPubKey
-      })
-    })
-
-    this.peer.on('stream', (stream: MediaStream) => {
-      this.onRemoteStream?.(stream)
-      this._setState('connected')
-    })
-
-    this.peer.on('error', (err: Error) => {
-      this.onError?.(err.message)
-      this._setState('ended')
-    })
-
-    this.peer.on('close', () => this._setState('ended'))
-
-    // Send ring signal
-    const ringTag = getCallTag(myPubKey, theirPubKey, "ring")
-    await this._sendSignalToTag(myPubKey, sharedSecret, ringTag, {
+    // Send ring — use random delay for metadata protection
+    await randomDelay()
+    const ringTag = getRingTag(myPubKey, theirPubKey)
+    await this._publish(ringTag, sharedSecret, {
       type: 'ring',
       callId: this.callId,
       from: myPubKey
@@ -187,13 +138,8 @@ export class CallManager {
     callId: string,
     video = false
   ): Promise<void> {
-    this.sharedSecret = sharedSecret
     this.callId = callId
-    this.callTag = getCallTag(theirPubKey, myPubKey, callId)
-
     this.ephemeralPrivKey = generateSecretKey()
-    this.ephemeralPubKey = getPublicKey(this.ephemeralPrivKey)
-
     this._setState('receiving')
 
     try {
@@ -204,15 +150,24 @@ export class CallManager {
       return
     }
 
-    await this._subscribeToSignals(myPubKey, theirPubKey, sharedSecret)
+    await this._subscribeToCallSignals(myPubKey, sharedSecret)
+    this._createPeer(false, myPubKey, theirPubKey, sharedSecret)
+  }
 
+  private _createPeer(
+    initiator: boolean,
+    myPubKey: string,
+    theirPubKey: string,
+    sharedSecret: Uint8Array
+  ): void {
     this.peer = new SimplePeer({
-      initiator: false,
-      stream: this.localStream,
+      initiator,
+      stream: this.localStream!,
       trickle: true,
       config: {
         iceServers: [
           { urls: 'stun:stun.cloudflare.com:3478' },
+          { urls: 'stun:stun.l.google.com:19302' },
           {
             urls: 'turn:openrelay.metered.ca:80',
             username: 'openrelayproject',
@@ -223,11 +178,11 @@ export class CallManager {
     })
 
     this.peer.on('signal', async (data) => {
-      await randomDelay()
-      await this._sendSignal(myPubKey, theirPubKey, sharedSecret, {
-        type: data.type === 'answer' ? 'answer' : 'ice',
+      const signalTag = getSignalTag(this.callId)
+      await this._publish(signalTag, sharedSecret, {
+        type: data.type === 'offer' ? 'offer' : data.type === 'answer' ? 'answer' : 'ice',
         data: JSON.stringify(data),
-        callId,
+        callId: this.callId,
         from: myPubKey
       })
     })
@@ -237,37 +192,25 @@ export class CallManager {
       this._setState('connected')
     })
 
-    this.peer.on('error', (err: Error) => {
-      this.onError?.(err.message)
-      this._setState('ended')
-    })
-
-    this.peer.on('close', () => this._setState('ended'))
+    this.peer.on('connect', () => this._setState('connected'))
+    this.peer.on('error', (err: Error) => { this.onError?.(err.message); this._cleanup() })
+    this.peer.on('close', () => this._cleanup())
   }
 
-  async hangup(myPubKey: string, theirPubKey: string, sharedSecret: Uint8Array): Promise<void> {
-    await this._sendSignal(myPubKey, theirPubKey, sharedSecret, {
-      type: 'hangup',
-      callId: this.callId,
-      from: myPubKey
-    })
-    this._cleanup()
-  }
-
-  private async _subscribeToSignals(
+  private async _subscribeToCallSignals(
     myPubKey: string,
-    theirPubKey: string,
     sharedSecret: Uint8Array
   ): Promise<void> {
-    if (!this.pool) return
-    const filter = {
-      kinds: [CALL_KIND],
-      since: Math.floor(Date.now() / 1000) - 5,
-    }
-    ;(filter as Record<string, unknown>)['#t'] = [this.callTag]
+    if (this.callSub) { this.callSub.close(); this.callSub = null }
+    if (this.callPool) { this.callPool.close(CALL_RELAYS); this.callPool = null }
 
-    if (this.sub) this.sub.close()
-    this.sub = this.pool.subscribeMany(
+    this.callPool = new SimplePool()
+    const signalTag = getSignalTag(this.callId)
+
+    const filter = { kinds: [CALL_KIND], since: Math.floor(Date.now() / 1000) - 5 }
+    ;(filter as Record<string, unknown>)['#t'] = [signalTag]
+
+    this.callSub = this.callPool.subscribeMany(
       CALL_RELAYS,
       filter as unknown as Filter,
       {
@@ -276,14 +219,10 @@ export class CallManager {
             const decrypted = await decryptMessage(event.content, sharedSecret, event.id)
             if (!decrypted) return
             const signal: CallSignal = JSON.parse(decrypted)
-            if (signal.from === myPubKey) return // ignore own signals
+            if (signal.from === myPubKey) return
             if (signal.callId !== this.callId) return
 
-            if (signal.type === 'hangup') {
-              this._cleanup()
-              return
-            }
-
+            if (signal.type === 'hangup') { this._cleanup(); return }
             if (signal.data && this.peer) {
               this.peer.signal(JSON.parse(signal.data))
             }
@@ -293,32 +232,35 @@ export class CallManager {
     )
   }
 
-  private async _sendSignal(
-    myPubKey: string,
-    theirPubKey: string,
-    sharedSecret: Uint8Array,
-    signal: CallSignal
-  ): Promise<void> {
-    await this._sendSignalToTag(myPubKey, sharedSecret, this.callTag, signal)
-  }
-
-  private async _sendSignalToTag(
-    myPubKey: string,
-    sharedSecret: Uint8Array,
+  private async _publish(
     tag: string,
+    sharedSecret: Uint8Array,
     signal: CallSignal
   ): Promise<void> {
-    if (!this.pool || !this.ephemeralPrivKey) return
+    const privKey = this.ephemeralPrivKey
+    if (!privKey) return
+    const pool = this.listenPool || new SimplePool()
     const encrypted = await encryptMessage(JSON.stringify(signal), sharedSecret, crypto.randomUUID())
     const event = finalizeEvent({
       kind: CALL_KIND,
       created_at: Math.floor(Date.now() / 1000),
       tags: [['t', tag]],
       content: encrypted,
-    }, this.ephemeralPrivKey)
-    try {
-      await Promise.any(this.pool.publish(CALL_RELAYS, event))
-    } catch { /* relay unavailable */ }
+    }, privKey)
+    try { await Promise.any(pool.publish(CALL_RELAYS, event)) } catch { /* relay unavailable */ }
+  }
+
+  async hangup(myPubKey: string, theirPubKey: string, sharedSecret: Uint8Array): Promise<void> {
+    if (this.callId && sharedSecret.length > 0) {
+      const signalTag = getSignalTag(this.callId)
+      await this._publish(signalTag, sharedSecret, { type: 'hangup', callId: this.callId, from: myPubKey })
+    }
+    this._cleanup()
+  }
+
+  stopListening(): void {
+    if (this.listenSub) { this.listenSub.close(); this.listenSub = null }
+    if (this.listenPool) { this.listenPool.close(CALL_RELAYS); this.listenPool = null }
   }
 
   private _setState(state: CallState): void {
@@ -328,9 +270,10 @@ export class CallManager {
 
   private _cleanup(): void {
     if (this.peer) { this.peer.destroy(); this.peer = null }
-    if (this.sub) { this.sub.close(); this.sub = null }
-    if (this.pool) { this.pool.close(CALL_RELAYS); this.pool = null }
+    if (this.callSub) { this.callSub.close(); this.callSub = null }
+    if (this.callPool) { this.callPool.close(CALL_RELAYS); this.callPool = null }
     if (this.localStream) { this.localStream.getTracks().forEach(t => t.stop()); this.localStream = null }
+    this.ephemeralPrivKey = null
     this._setState('ended')
   }
 
