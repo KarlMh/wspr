@@ -10,7 +10,6 @@ import {
 } from '@/lib/identity'
 import {
   saveContact, loadContacts, deleteContact, updateContactLastSeen,
-  saveChannelMessage, loadChannelMessages, clearChannelMessages,
   type Contact, type StoredMessage
 } from '@/lib/storage'
 import Link from 'next/link'
@@ -74,6 +73,16 @@ export default function ChatPage() {
     const time = new Date().toTimeString().slice(0, 8)
     setLog(prev => [`[${time}] ${msg}`, ...prev].slice(0, 20))
   }
+
+  // Nuke any leftover message history from localStorage on every load
+  useEffect(() => {
+    const keys: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k?.startsWith('wspr_msgs_')) keys.push(k)
+    }
+    keys.forEach(k => localStorage.removeItem(k))
+  }, [])
 
   useEffect(() => {
     const session = getSessionIdentity()
@@ -190,19 +199,12 @@ export default function ChatPage() {
       const secret = await deriveSharedSecret(privateKey, contact.publicKey)
       const safety = await generateSafetyNumber(identity.publicKey, contact.publicKey)
       setSharedSecret(secret); sharedSecretRef.current = secret; setSafetyNumber(safety)
-      const history = loadChannelMessages(identity.publicKey, contact.publicKey)
-      // Restore plaintext for own messages from stored plaintext field
-      const restoredHistory = history.map(m => ({
-        ...m,
-        plaintext: (m as StoredMessage & { plaintext?: string }).plaintext || (m.mine ? undefined : undefined)
-      }))
-      setMessages(restoredHistory)
+      setMessages([])
       onMessageRef.current = async (nostrMsg: NostrMessage) => {
         const currentSecret = sharedSecretRef.current; if (!currentSecret) return
         const plaintext = await decryptMessage(nostrMsg.ciphertext, currentSecret, nostrMsg.id)
         if (!plaintext) return
         const stored: StoredMessage = { id: nostrMsg.id, from: nostrMsg.from, ciphertext: nostrMsg.ciphertext, timestamp: nostrMsg.timestamp, type: nostrMsg.type, fileName: nostrMsg.fileName, mine: false }
-        saveChannelMessage(identity.publicKey, contact.publicKey, stored)
         updateContactLastSeen(contact.publicKey, identity.publicKey)
         setMessages(prev => { if (prev.find(m => m.id === nostrMsg.id)) return prev; return [...prev, { ...stored, plaintext }] })
       }
@@ -262,9 +264,7 @@ export default function ChatPage() {
     const draft = input.trim(); setInput('')
     try {
       await nostrClient.send(msg)
-      const stored: StoredMessage = { ...msg, mine: true, plaintext: draft }
-      saveChannelMessage(identity.publicKey, activeContact.publicKey, stored)
-      setMessages(prev => [...prev, { ...stored, plaintext: draft }])
+      setMessages(prev => [...prev, { id: msg.id, from: msg.from, ciphertext: msg.ciphertext, timestamp: msg.timestamp, type: msg.type, mine: true, plaintext: draft }])
       inputRef.current?.focus()
     } catch {
       setInput(draft)
@@ -283,7 +283,6 @@ export default function ChatPage() {
     try {
       await nostrClient.send(msg)
       const stored: StoredMessage = { ...msg, mine: true }
-      saveChannelMessage(identity.publicKey, activeContact.publicKey, stored)
       const imageUrl = isImage ? URL.createObjectURL(f) : undefined
       setMessages(prev => [...prev, { ...stored, imageUrl, plaintext: isImage ? undefined : `[file: ${f.name}]` }])
     } catch { addLog('ERROR: Send failed.') }
@@ -631,8 +630,6 @@ export default function ChatPage() {
             <div className="p-4">
               <button onClick={() => {
                 if (!activeContact || !identity) return
-                if (!confirm('Clear chat history with this contact?')) return
-                clearChannelMessages(identity.publicKey, activeContact.publicKey)
                 setMessages([])
               }} className="w-full text-xs py-2 border border-zinc-800 text-zinc-600 hover:text-zinc-400 uppercase tracking-widest transition-all">
                 Clear history

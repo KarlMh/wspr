@@ -46,6 +46,7 @@ export class CallManager {
   private callId: string = ''
   private localStream: MediaStream | null = null
   private state: CallState = 'idle'
+  private seenSignals = new Set<string>()
   private myPubKey: string = ''
   private theirPubKey: string = ''
   private sharedSecret: Uint8Array | null = null
@@ -140,13 +141,19 @@ export class CallManager {
     await this._subscribeToCallSignals(myPubKey, sharedSecret)
     this._createPeer(true, myPubKey, sharedSecret)
 
-    // Send ring
+    // Wait for relay subscription to be established before ringing
+    await new Promise(r => setTimeout(r, 2000))
+
+    // Send ring — repeat 3 times to ensure delivery
     const ringTag = getRingTag(myPubKey, theirPubKey)
-    await this._publish(ringTag, sharedSecret, {
-      type: 'ring',
-      callId: this.callId,
-      from: myPubKey
-    })
+    for (let i = 0; i < 3; i++) {
+      await this._publish(ringTag, sharedSecret, {
+        type: 'ring',
+        callId: this.callId,
+        from: myPubKey
+      })
+      await new Promise(r => setTimeout(r, 500))
+    }
   }
 
   async answerCall(
@@ -205,12 +212,16 @@ export class CallManager {
 
     this.peer.on('signal', async (data) => {
       const signalTag = getSignalTag(this.callId)
-      await this._publish(signalTag, sharedSecret, {
+      const sig = {
         type: data.type === 'offer' ? 'offer' : data.type === 'answer' ? 'answer' : 'ice',
         data: JSON.stringify(data),
         callId: this.callId,
         from: myPubKey
-      })
+      } as CallSignal
+      // Send twice for reliability
+      await this._publish(signalTag, sharedSecret, sig)
+      await new Promise(r => setTimeout(r, 300))
+      await this._publish(signalTag, sharedSecret, sig)
     })
 
     this.peer.on('stream', (stream: MediaStream) => {
@@ -242,6 +253,8 @@ export class CallManager {
       {
         onevent: async (event) => {
           try {
+            if (this.seenSignals.has(event.id)) return
+            this.seenSignals.add(event.id)
             const decrypted = await decryptMessage(event.content, sharedSecret, event.id)
             if (!decrypted) return
             const signal: CallSignal = JSON.parse(decrypted)
@@ -336,6 +349,7 @@ export class CallManager {
     this.ephemeralPrivKey = null
     this.analyser = null
     this.remoteAnalyser = null
+    this.seenSignals.clear()
     this._setState('ended')
   }
 
