@@ -222,7 +222,7 @@ export class CallManager {
       this.onStateChange?.('connected'); this.state = 'connected'
     })
 
-    this.peer.on('connect', () => this.onStateChange?.('connected'); this.state = 'connected')
+    this.peer.on('connect', () => { this.onStateChange?.('connected'); this.state = 'connected' })
     this.peer.on('error', (err: Error) => { this.onError?.(err.message); this._cleanup() })
     this.peer.on('close', () => this._cleanup())
   }
