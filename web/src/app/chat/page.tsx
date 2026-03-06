@@ -15,6 +15,7 @@ import {
 } from '@/lib/storage'
 import Link from 'next/link'
 import { CallManager, CallState } from '@/lib/call'
+import CallOverlay from '@/components/CallOverlay'
 
 const callManager = new CallManager()
 
@@ -57,6 +58,8 @@ export default function ChatPage() {
   const [localMuted, setLocalMuted] = useState(false)
   const [callDuration, setCallDuration] = useState(0)
   const [showCall, setShowCall] = useState(false)
+  const [localVolume, setLocalVolume] = useState(0)
+  const [remoteVolume, setRemoteVolume] = useState(0)
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -235,6 +238,8 @@ export default function ChatPage() {
         if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream
       }
       callManager.onError = (err) => addLog(`CALL ERROR: ${err}`)
+      callManager.onLocalVolume = (v) => setLocalVolume(v)
+      callManager.onRemoteVolume = (v) => setRemoteVolume(v)
       await callManager.listenForCalls(identity.publicKey, secret, contact.publicKey)
     } catch (e: unknown) {
       addLog(`ERROR: ${e instanceof Error ? e.message : 'Connection failed'}`)
@@ -638,95 +643,33 @@ export default function ChatPage() {
       </div>
       {/* Call overlay */}
       {showCall && (
-        <div className="fixed inset-0 bg-zinc-950 bg-opacity-95 flex flex-col items-center justify-center z-50" style={{fontFamily:'monospace'}}>
-          <div className="w-full max-w-sm flex flex-col items-center gap-6 p-8">
-
-            {callState === 'calling' && (
-              <>
-                <div className="w-16 h-16 rounded-full border border-zinc-700 flex items-center justify-center">
-                  <span className="text-2xl">☎</span>
-                </div>
-                <p className="text-zinc-300 text-xs uppercase tracking-widest">Calling {activeContact?.name}...</p>
-                <p className="text-zinc-700 text-xs animate-pulse">Waiting for answer</p>
-                <button
-                  onClick={() => { callManager.hangup(identity?.publicKey||'', activeContact?.publicKey||'', sharedSecret!); setShowCall(false) }}
-                  className="border border-red-900 text-red-700 hover:text-red-500 text-xs px-8 py-3 uppercase tracking-widest transition-all">
-                  Cancel
-                </button>
-              </>
-            )}
-
-            {callState === 'receiving' && (
-              <>
-                <div className="w-16 h-16 rounded-full border border-zinc-600 flex items-center justify-center animate-pulse">
-                  <span className="text-2xl">☎</span>
-                </div>
-                <p className="text-zinc-300 text-xs uppercase tracking-widest">Incoming call</p>
-                <p className="text-zinc-600 text-xs">{activeContact?.name}</p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={async () => {
-                      if (!sharedSecret || !activeContact || !identity) return
-                      await callManager.answerCall(identity.publicKey, activeContact.publicKey, sharedSecret, incomingCallId, false)
-                    }}
-                    className="border border-zinc-500 text-zinc-300 hover:bg-zinc-800 text-xs px-8 py-3 uppercase tracking-widest transition-all">
-                    Answer
-                  </button>
-                  <button
-                    onClick={() => { callManager.hangup(identity?.publicKey||'', activeContact?.publicKey||'', sharedSecret!); setShowCall(false) }}
-                    className="border border-red-900 text-red-700 hover:text-red-500 text-xs px-8 py-3 uppercase tracking-widest transition-all">
-                    Decline
-                  </button>
-                </div>
-              </>
-            )}
-
-            {callState === 'connected' && (
-              <>
-                <div className="w-16 h-16 rounded-full border border-zinc-400 flex items-center justify-center">
-                  <span className="text-2xl">☎</span>
-                </div>
-                <p className="text-zinc-300 text-xs uppercase tracking-widest">{activeContact?.name}</p>
-                <p className="text-zinc-400 text-sm font-mono">
-                  {Math.floor(callDuration/60).toString().padStart(2,'0')}:{(callDuration%60).toString().padStart(2,'0')}
-                </p>
-                <p className="text-zinc-700 text-xs">DTLS-SRTP · P2P · Nostr signaling</p>
-
-                {/* Hidden audio element for remote stream */}
-                <audio ref={remoteVideoRef as React.RefObject<HTMLAudioElement>} autoPlay playsInline className="hidden" />
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      const stream = callManager.getLocalStream()
-                      if (stream) {
-                        stream.getAudioTracks().forEach(t => { t.enabled = !t.enabled })
-                        setLocalMuted(m => !m)
-                      }
-                    }}
-                    className={`border text-xs px-6 py-3 uppercase tracking-widest transition-all ${localMuted ? 'border-zinc-500 text-zinc-300' : 'border-zinc-800 text-zinc-600 hover:border-zinc-600'}`}>
-                    {localMuted ? 'Unmute' : 'Mute'}
-                  </button>
-                  <button
-                    onClick={() => callManager.hangup(identity?.publicKey||'', activeContact?.publicKey||'', sharedSecret!)}
-                    className="border border-red-900 text-red-700 hover:text-red-500 text-xs px-8 py-3 uppercase tracking-widest transition-all">
-                    End
-                  </button>
-                </div>
-              </>
-            )}
-
-            {callState === 'ended' && (
-              <>
-                <p className="text-zinc-600 text-xs uppercase tracking-widest">Call ended</p>
-                <button onClick={() => setShowCall(false)}
-                  className="border border-zinc-800 text-zinc-600 text-xs px-6 py-2 uppercase tracking-widest transition-all">
-                  Close
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+        <CallOverlay
+          state={callState}
+          contactName={activeContact?.name || ''}
+          duration={callDuration}
+          localVolume={localVolume}
+          remoteVolume={remoteVolume}
+          muted={localMuted}
+          remoteStream={remoteStream}
+          onAnswer={async () => {
+            if (!sharedSecret || !activeContact || !identity) return
+            await callManager.answerCall(identity.publicKey, activeContact.publicKey, sharedSecret, incomingCallId, false)
+          }}
+          onDecline={() => {
+            callManager.hangup(identity?.publicKey||'', activeContact?.publicKey||'', sharedSecret || new Uint8Array())
+            setShowCall(false)
+            setCallState('idle')
+          }}
+          onHangup={() => {
+            callManager.hangup(identity?.publicKey||'', activeContact?.publicKey||'', sharedSecret || new Uint8Array())
+          }}
+          onMute={() => {
+            const stream = callManager.getLocalStream()
+            if (stream) { stream.getAudioTracks().forEach(t => { t.enabled = !t.enabled }) }
+            setLocalMuted(m => !m)
+          }}
+          onClose={() => { setShowCall(false); setCallState('idle') }}
+        />
       )}
     </main>
   )
