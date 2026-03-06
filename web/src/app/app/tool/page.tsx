@@ -3,7 +3,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { encodeV2, decodeV2 } from '@/lib/stegv2'
 import { encryptToBytes, decryptFromBytes, getTimeWindow } from '@/lib/crypto'
 import { stripExif } from '@/lib/exif'
-import { deriveSharedSecret, importPrivateKey, generateSafetyNumber } from '@/lib/keys'
+import { deriveSharedSecret, importPrivateKey, generateSafetyNumber, generateKeyPair, exportPrivateKey } from '@/lib/keys'
+import { encryptIdentity, downloadIdentityFile } from '@/lib/identity'
 import { decryptIdentity, readFileAsBytes, setSessionIdentity, getSessionIdentity, type Identity } from '@/lib/identity'
 import Link from 'next/link'
 
@@ -19,6 +20,10 @@ export default function ToolPage() {
   const [unlockPassword, setUnlockPassword] = useState('')
   const [unlockError, setUnlockError] = useState('')
   const [unlockLoading, setUnlockLoading] = useState(false)
+  const [identityMode, setIdentityMode] = useState<'load' | 'create'>('load')
+  const [createPassword, setCreatePassword] = useState('')
+  const [createPassword2, setCreatePassword2] = useState('')
+  const [createError, setCreateError] = useState('')
 
   // ECDH exchange
   const [theirPublicKey, setTheirPublicKey] = useState('')
@@ -137,6 +142,29 @@ export default function ToolPage() {
       addLog('Identity loaded.')
     } catch {
       setUnlockError('Failed to unlock.')
+    } finally {
+      setUnlockLoading(false)
+    }
+  }
+
+  const handleCreate = async () => {
+    if (!createPassword.trim()) return setCreateError('Password required.')
+    if (createPassword !== createPassword2) return setCreateError('Passwords do not match.')
+    if (createPassword.length < 8) return setCreateError('Min 8 characters.')
+    setUnlockLoading(true)
+    setCreateError('')
+    try {
+      const pair = await generateKeyPair()
+      const privRaw = await exportPrivateKey(pair.privateKey)
+      const id: Identity = { publicKey: pair.publicKeyRaw, privateKeyRaw: privRaw, createdAt: Date.now() }
+      const encrypted = await encryptIdentity(id, createPassword)
+      downloadIdentityFile(encrypted, 'wspr-identity.wspr')
+      setSessionIdentity(id)
+      setIdentity(id)
+      setStep('exchange')
+      addLog('Identity created. .wspr file downloaded.')
+    } catch {
+      setCreateError('Failed to create identity.')
     } finally {
       setUnlockLoading(false)
     }
