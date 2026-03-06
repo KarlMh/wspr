@@ -348,10 +348,10 @@ export default function ChatPage() {
               setCallState('idle')
               setShowCall(true)
               await callManager.startCall(identity.publicKey, activeContact.publicKey, sharedSecret, false)
-            }} className="text-zinc-600 hover:text-zinc-300 border border-zinc-800 px-3 py-1.5 transition-all text-base">☎</button>
+            }} className="text-zinc-600 hover:text-zinc-300 border border-zinc-800 px-2 py-1 transition-all text-xs">☎</button>
           )}
           {screen === 'chat' && (
-            <button onClick={() => setShowSidebar(v => !v)} className="text-zinc-600 hover:text-zinc-300 border border-zinc-800 px-3 py-1.5 transition-all text-base">≡</button>
+            <button onClick={() => setShowSidebar(v => !v)} className="text-zinc-600 hover:text-zinc-300 border border-zinc-800 px-2 py-1 transition-all text-xs">≡</button>
           )}
           {identity && screen !== 'settings' && screen !== 'chat' && (
             <button onClick={() => setScreen('settings')} className="text-zinc-600 hover:text-zinc-300 border border-zinc-800 px-2 py-1 transition-all text-xs hidden sm:block">SET</button>
