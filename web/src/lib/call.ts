@@ -103,7 +103,7 @@ export class CallManager {
                   // Destroy current peer, recreate as non-initiator
                   if (this.peer) { this.peer.destroy(); this.peer = null }
                   this._createPeer(false, myPubKey, sharedSecret)
-                  this._setState('connected')
+                  this.onStateChange?.('connected'); this.state = 'connected'
                 }
                 // If we are initiator, ignore their ring — they'll answer ours
               } else if (this.state === 'idle') {
@@ -219,10 +219,10 @@ export class CallManager {
     this.peer.on('stream', (stream: MediaStream) => {
       this._attachRemoteVolume(stream)
       this.onRemoteStream?.(stream)
-      this._setState('connected')
+      this.onStateChange?.('connected'); this.state = 'connected'
     })
 
-    this.peer.on('connect', () => this._setState('connected'))
+    this.peer.on('connect', () => this.onStateChange?.('connected'); this.state = 'connected')
     this.peer.on('error', (err: Error) => { this.onError?.(err.message); this._cleanup() })
     this.peer.on('close', () => this._cleanup())
   }
