@@ -101,28 +101,33 @@ export class CallManager {
       {
         onevent: async (event) => {
           try {
-            if (this.seenSignals.has(event.id)) return
+            console.log('[CALL] ring listener got event', event.id)
+            if (this.seenSignals.has(event.id)) { console.log('[CALL] duplicate, skip'); return }
             this.seenSignals.add(event.id)
             const decrypted = await decryptSignal(event.content, sharedSecret)
-            if (!decrypted) return
+            if (!decrypted) { console.log('[CALL] decrypt failed'); return }
             const signal: CallSignal = JSON.parse(decrypted)
-            if (signal.from === myPubKey) return
+            console.log('[CALL] ring signal:', signal.type, 'from:', signal.from.slice(0,8), 'state:', this.state)
+            if (signal.from === myPubKey) { console.log('[CALL] own signal, skip'); return }
             if (signal.type !== 'ring') return
 
             if (this.state === 'calling') {
-              // Mutual call — lower pubkey becomes answerer
               if (myPubKey < theirPubKey) {
+                console.log('[CALL] mutual call, becoming answerer')
                 if (this.peer) { this.peer.destroy(); this.peer = null }
                 this.callId = signal.callId
                 await this._subscribeToCallSignals(myPubKey, sharedSecret)
                 this._createPeer(false, myPubKey, sharedSecret)
+              } else {
+                console.log('[CALL] mutual call, staying initiator')
               }
             } else if (this.state === 'idle') {
+              console.log('[CALL] incoming call received')
               this.callId = signal.callId
               this._setState('receiving')
               this.onIncomingCall?.(signal.callId, signal.from)
             }
-          } catch { /* ignore */ }
+          } catch (e) { console.log('[CALL] ring error', e) }
         }
       }
     )
@@ -250,18 +255,22 @@ export class CallManager {
       {
         onevent: async (event) => {
           try {
-            if (this.seenSignals.has(event.id)) return
+            console.log('[CALL] signal listener got event', event.id)
+            if (this.seenSignals.has(event.id)) { console.log('[CALL] dup signal'); return }
             this.seenSignals.add(event.id)
             const decrypted = await decryptSignal(event.content, sharedSecret)
-            if (!decrypted) return
+            if (!decrypted) { console.log('[CALL] signal decrypt failed'); return }
             const signal: CallSignal = JSON.parse(decrypted)
+            console.log('[CALL] signal type:', signal.type, 'peer exists:', !!this.peer)
             if (signal.from === myPubKey) return
-            if (signal.callId !== this.callId) return
+            if (signal.callId !== this.callId) { console.log('[CALL] wrong callId'); return }
             if (signal.type === 'hangup') { this._cleanup(); return }
             if (signal.data && this.peer) {
               this.peer.signal(JSON.parse(signal.data))
+            } else if (!this.peer) {
+              console.log('[CALL] no peer to signal')
             }
-          } catch { /* ignore */ }
+          } catch (e) { console.log('[CALL] signal error', e) }
         }
       }
     )
@@ -280,8 +289,10 @@ export class CallManager {
         tags: [['t', tag]],
         content: encrypted,
       }, privKey)
+      console.log('[CALL] publishing', signal.type, 'to tag', tag)
       await Promise.any(pool.publish(CALL_RELAYS, event))
-    } catch { /* relay unavailable */ }
+      console.log('[CALL] published ok')
+    } catch (e) { console.log('[CALL] publish failed', e) }
   }
 
   private _startVoiceActivity(): void {
