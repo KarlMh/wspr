@@ -294,24 +294,50 @@ export default function ToolPage() {
       </div>
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-sm flex flex-col gap-4">
-          <p className="text-zinc-600 text-xs uppercase tracking-widest">Load Identity</p>
-          <p className="text-zinc-700 text-xs leading-relaxed">
-            The tool uses your <span className="text-zinc-500">.wspr</span> identity for ECDH key exchange. Load the same file you use for chat.
-          </p>
-          <label className={`block border p-4 cursor-pointer text-center transition-all ${
-            pendingFile ? 'border-zinc-600 bg-zinc-900' : 'border-zinc-800 hover:border-zinc-700'}`}>
-            <span className="text-zinc-500 text-xs">{pendingFileName || 'Select .wspr file'}</span>
-            <input type="file" accept=".wspr" onChange={handleWsprFile} className="hidden" />
-          </label>
-          <input type="password" value={unlockPassword} onChange={e => setUnlockPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleUnlock()}
-            placeholder="Password"
-            className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 placeholder-zinc-800" />
-          {unlockError && <p className="text-zinc-500 text-xs">{unlockError}</p>}
-          <button onClick={handleUnlock} disabled={unlockLoading || !pendingFile || !unlockPassword}
-            className="border border-zinc-600 text-zinc-300 text-xs py-3 uppercase tracking-widest hover:bg-zinc-900 transition-all disabled:opacity-30">
-            {unlockLoading ? 'Unlocking...' : 'Unlock'}
-          </button>
+          <p className="text-zinc-600 text-xs uppercase tracking-widest">Identity</p>
+          <div className="flex gap-1">
+            {(['load', 'create'] as const).map(m => (
+              <button key={m} onClick={() => { setIdentityMode(m); setUnlockError(''); setCreateError('') }}
+                className={`flex-1 text-xs py-2 border transition-all ${identityMode === m ? 'border-zinc-500 text-zinc-300' : 'border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>
+                {m === 'load' ? 'Load identity' : 'Create new'}
+              </button>
+            ))}
+          </div>
+          {identityMode === 'load' && (
+            <>
+              <p className="text-zinc-700 text-xs leading-relaxed">Load your <span className="text-zinc-500">.wspr</span> file. Same file used for chat.</p>
+              <label className={`block border p-4 cursor-pointer text-center transition-all ${pendingFile ? 'border-zinc-600 bg-zinc-900' : 'border-zinc-800 hover:border-zinc-700'}`}>
+                <span className="text-zinc-500 text-xs">{pendingFileName || 'Select .wspr file'}</span>
+                <input type="file" accept=".wspr" onChange={handleWsprFile} className="hidden" />
+              </label>
+              <input type="password" value={unlockPassword} onChange={e => setUnlockPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleUnlock()}
+                placeholder="Password"
+                className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 placeholder-zinc-800" />
+              {unlockError && <p className="text-zinc-500 text-xs">{unlockError}</p>}
+              <button onClick={handleUnlock} disabled={unlockLoading || !pendingFile || !unlockPassword}
+                className="border border-zinc-600 text-zinc-300 text-xs py-3 uppercase tracking-widest hover:bg-zinc-900 transition-all disabled:opacity-30">
+                {unlockLoading ? 'Unlocking...' : 'Unlock'}
+              </button>
+            </>
+          )}
+          {identityMode === 'create' && (
+            <>
+              <p className="text-zinc-700 text-xs leading-relaxed">Generate a new keypair. A <span className="text-zinc-500">.wspr</span> file will download — keep it safe. Works for chat too.</p>
+              <input type="password" value={createPassword} onChange={e => setCreatePassword(e.target.value)}
+                placeholder="Password (min 8 chars)"
+                className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 placeholder-zinc-800" />
+              <input type="password" value={createPassword2} onChange={e => setCreatePassword2(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                placeholder="Confirm password"
+                className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 placeholder-zinc-800" />
+              {createError && <p className="text-zinc-500 text-xs">{createError}</p>}
+              <button onClick={handleCreate} disabled={unlockLoading || !createPassword || !createPassword2}
+                className="border border-zinc-600 text-zinc-300 text-xs py-3 uppercase tracking-widest hover:bg-zinc-900 transition-all disabled:opacity-30">
+                {unlockLoading ? 'Creating...' : 'Create & download identity'}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </main>
