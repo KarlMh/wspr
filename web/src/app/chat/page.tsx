@@ -680,17 +680,15 @@ export default function ChatPage() {
             await callManager.answerCall(identity.publicKey, activeContact.publicKey, sharedSecret, incomingCallId, false)
           }}
           onDecline={async () => {
-            callManager.hangup(identity?.publicKey||'', activeContact?.publicKey||'', sharedSecret || new Uint8Array())
+            if (identity && activeContact && sharedSecret) {
+              await callManager.declineCall(identity.publicKey, activeContact.publicKey, sharedSecret, incomingCallId)
+            }
             setShowCall(false)
             setCallState('idle')
             setRemoteStream(null)
             setCallDuration(0)
             setLocalMuted(false)
             setIncomingCallId('')
-            // Restart listener so future calls work
-            if (identity && activeContact && sharedSecret) {
-              await callManager.listenForCalls(identity.publicKey, sharedSecret, activeContact.publicKey)
-            }
           }}
           onHangup={async () => {
             callManager.hangup(identity?.publicKey||'', activeContact?.publicKey||'', sharedSecret || new Uint8Array())

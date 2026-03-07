@@ -104,7 +104,7 @@ export class CallManager {
     this.listenPool = new SimplePool()
     const ringTag = getRingTag(myPubKey, theirPubKey)
     console.log("[CALL] listening for ring on tag:", ringTag, "my:", myPubKey.slice(0,8), "their:", theirPubKey.slice(0,8))
-    const filter = { kinds: [CALL_KIND], since: Math.floor(Date.now() / 1000) - 5 }
+    const filter = { kinds: [CALL_KIND], since: Math.floor(Date.now() / 1000) - 30 }
     ;(filter as Record<string, unknown>)['#t'] = [ringTag]
 
     this.listenSub = this.listenPool.subscribeMany(
@@ -121,6 +121,11 @@ export class CallManager {
             const signal: CallSignal = JSON.parse(decrypted)
             console.log('[CALL] ring signal:', signal.type, 'from:', signal.from.slice(0,8), 'state:', this.state)
             if (signal.from === myPubKey) { console.log('[CALL] own signal, skip'); return }
+            if (signal.type === 'hangup') {
+              console.log('[CALL] hangup received on ring tag')
+              this._cleanup()
+              return
+            }
             if (signal.type !== 'ring') return
 
             if (this.state === 'calling') {
@@ -183,6 +188,25 @@ export class CallManager {
       await this._publish(ringTag, sharedSecret, { type: 'ring', callId: this.callId, from: myPubKey })
       await new Promise(r => setTimeout(r, 800))
     }
+  }
+
+  async declineCall(
+    myPubKey: string,
+    theirPubKey: string,
+    sharedSecret: Uint8Array,
+    callId: string
+  ): Promise<void> {
+    // Send hangup on both ring tag and signal tag so caller definitely gets it
+    this.callId = callId
+    this.ephemeralPrivKey = generateSecretKey()
+    this.publishPool = new SimplePool()
+    const ringTag = getRingTag(myPubKey, theirPubKey)
+    const signalTag = getSignalTag(callId)
+    await this._publish(ringTag, sharedSecret, { type: 'hangup', callId, from: myPubKey })
+    await this._publish(signalTag, sharedSecret, { type: 'hangup', callId, from: myPubKey })
+    if (this.publishPool) { this.publishPool.close(CALL_RELAYS); this.publishPool = null }
+    this.ephemeralPrivKey = null
+    this._cleanup()
   }
 
   async answerCall(
@@ -271,7 +295,7 @@ export class CallManager {
 
     this.callPool = new SimplePool()
     const signalTag = getSignalTag(this.callId)
-    const filter = { kinds: [CALL_KIND], since: Math.floor(Date.now() / 1000) - 5 }
+    const filter = { kinds: [CALL_KIND], since: Math.floor(Date.now() / 1000) - 30 }
     ;(filter as Record<string, unknown>)['#t'] = [signalTag]
 
     this.callSub = this.callPool.subscribeMany(
