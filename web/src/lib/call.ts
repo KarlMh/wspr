@@ -70,6 +70,7 @@ export class CallManager {
   private localStream: MediaStream | null = null
   private state: CallState = 'idle'
   private seenSignals = new Set<string>()
+  private restartTimer: ReturnType<typeof setTimeout> | null = null
   private signalBuffer: string[] = []
   private listenMyPubKey: string = ''
   private listenSharedSecret: Uint8Array | null = null
@@ -385,6 +386,7 @@ export class CallManager {
     this.ephemeralPrivKey = null
     this.analyser = null
     this.remoteAnalyser = null
+    if (this.restartTimer) { clearTimeout(this.restartTimer); this.restartTimer = null }
     this.seenSignals.clear()
     this.signalBuffer = []
     this._setState('ended')

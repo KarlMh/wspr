@@ -218,14 +218,18 @@ export default function ChatPage() {
 
       // Listen for incoming calls
       callManager.onIncomingCall = (callId, from) => {
-        // Full reset before showing incoming call UI
+        console.log("[CALL] incoming call UI triggered, callId:", callId)
         setRemoteStream(null)
         setCallDuration(0)
         setLocalMuted(false)
         setIncomingCallId(callId)
         setIncomingCallFrom(from)
-        setCallState('receiving')
-        setShowCall(true)
+        // Force reset to receiving regardless of previous state
+        setCallState('idle')
+        setTimeout(() => {
+          setCallState('receiving')
+          setShowCall(true)
+        }, 50)
       }
       callManager.onStateChange = (state) => {
         setCallState(state)
