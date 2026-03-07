@@ -133,9 +133,11 @@ export class CallManager {
               } else {
                 console.log('[CALL] mutual call, staying initiator')
               }
-            } else if (this.state === 'idle') {
+            } else if (this.state === 'idle' || this.state === 'ended') {
               console.log('[CALL] incoming call received')
               this.callId = signal.callId
+              this.signalBuffer = []
+              this.seenSignals.clear()
               this._setState('receiving')
               this.onIncomingCall?.(signal.callId, signal.from)
             }
@@ -390,13 +392,16 @@ export class CallManager {
     this.seenSignals.clear()
     this.signalBuffer = []
     this._setState('ended')
-    console.log("[CALL] cleanup done, restarting listener in 1.5s, keys:", this.listenMyPubKey.slice(0,8), this.listenTheirPubKey.slice(0,8))
-    if (this.listenMyPubKey && this.listenSharedSecret && this.listenTheirPubKey) {
-      setTimeout(() => {
+    const myKey = this.listenMyPubKey
+    const secret = this.listenSharedSecret
+    const theirKey = this.listenTheirPubKey
+    console.log("[CALL] cleanup done, restarting listener in 2s")
+    if (myKey && secret && theirKey) {
+      this.restartTimer = setTimeout(() => {
+        this.restartTimer = null
         console.log("[CALL] restarting listener now")
-        this.seenSignals.clear()
-        this.listenForCalls(this.listenMyPubKey, this.listenSharedSecret!, this.listenTheirPubKey)
-      }, 1500)
+        this.listenForCalls(myKey, secret, theirKey)
+      }, 2000)
     }
   }
 
