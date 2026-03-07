@@ -73,6 +73,7 @@ export class CallManager {
   private restartTimer: ReturnType<typeof setTimeout> | null = null
   private signalBuffer: string[] = []
   private listenMyPubKey: string = ''
+  private declinedCallIds = new Set<string>()
   private listenSharedSecret: Uint8Array | null = null
   private listenTheirPubKey: string = ''
   private audioContext: AudioContext | null = null
@@ -95,11 +96,13 @@ export class CallManager {
     if (this.listenSub) { this.listenSub.close(); this.listenSub = null }
     if (this.listenPool) { this.listenPool.close(CALL_RELAYS); this.listenPool = null }
 
+    const isNewSession = this.listenTheirPubKey !== theirPubKey || this.listenMyPubKey !== myPubKey
     this.listenMyPubKey = myPubKey
     this.listenSharedSecret = sharedSecret
     this.listenTheirPubKey = theirPubKey
     this.seenSignals.clear()
     this.signalBuffer = []
+    if (isNewSession) this.declinedCallIds.clear()
     this.seenSignals.clear()
     this.listenPool = new SimplePool()
     const ringTag = getRingTag(myPubKey, theirPubKey)
@@ -139,6 +142,7 @@ export class CallManager {
                 console.log('[CALL] mutual call, staying initiator')
               }
             } else if (this.state === 'idle' || this.state === 'ended') {
+              if (this.declinedCallIds.has(signal.callId)) { console.log('[CALL] already declined, skip'); return }
               console.log('[CALL] incoming call received')
               this.callId = signal.callId
               this.signalBuffer = []
@@ -202,6 +206,7 @@ export class CallManager {
     this.publishPool = new SimplePool()
     const ringTag = getRingTag(myPubKey, theirPubKey)
     const signalTag = getSignalTag(callId)
+    this.declinedCallIds.add(callId)
     await this._publish(ringTag, sharedSecret, { type: 'hangup', callId, from: myPubKey })
     await this._publish(signalTag, sharedSecret, { type: 'hangup', callId, from: myPubKey })
     if (this.publishPool) { this.publishPool.close(CALL_RELAYS); this.publishPool = null }
