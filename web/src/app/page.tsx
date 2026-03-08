@@ -4,6 +4,7 @@ import Link from 'next/link'
 
 export default function Landing() {
   const { theme, toggle: toggleTheme } = useTheme()
+  const { theme, toggle: toggleTheme } = useTheme()
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-300 flex flex-col" style={{ fontFamily: 'monospace' }}>
 
