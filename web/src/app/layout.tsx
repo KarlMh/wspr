@@ -37,7 +37,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <script dangerouslySetInnerHTML={{ __html: `
+        (function() {
+          try {
+            var t = localStorage.getItem('wspr_theme');
+            if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+          } catch(e) {}
+        })();
+      `}} />
       <body>{children}</body>
     </html>
   )

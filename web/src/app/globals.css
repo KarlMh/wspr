@@ -1,31 +1,49 @@
 @import "tailwindcss";
 
+/* ── Theme variables ─────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg:        #09090b;   /* zinc-950 */
+  --bg-2:      #18181b;   /* zinc-900 */
+  --bg-3:      #27272a;   /* zinc-800 */
+  --border:    #27272a;   /* zinc-800 */
+  --border-2:  #3f3f46;   /* zinc-700 */
+  --border-3:  #52525b;   /* zinc-600 */
+  --text-1:    #d4d4d8;   /* zinc-300 */
+  --text-2:    #a1a1aa;   /* zinc-400 */
+  --text-3:    #71717a;   /* zinc-500 */
+  --text-4:    #52525b;   /* zinc-600 */
+  --text-5:    #3f3f46;   /* zinc-700 */
+  --text-6:    #27272a;   /* zinc-800 */
+  --dot-online: #a1a1aa;
+  --dot-off:    #27272a;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+[data-theme="light"] {
+  --bg:        #fafafa;
+  --bg-2:      #f4f4f5;
+  --bg-3:      #e4e4e7;
+  --border:    #e4e4e7;
+  --border-2:  #d4d4d8;
+  --border-3:  #a1a1aa;
+  --text-1:    #18181b;
+  --text-2:    #27272a;
+  --text-3:    #3f3f46;
+  --text-4:    #52525b;
+  --text-5:    #71717a;
+  --text-6:    #a1a1aa;
+  --dot-online: #3f3f46;
+  --dot-off:    #d4d4d8;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Base ────────────────────────────────────────────────────── */
+html, body {
+  background: var(--bg);
+  color: var(--text-1);
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-/* Mobile safe areas */
+/* ── Safe areas ──────────────────────────────────────────────── */
 :root {
   --sat: env(safe-area-inset-top);
   --sar: env(safe-area-inset-right);
@@ -33,18 +51,57 @@ body {
   --sal: env(safe-area-inset-left);
 }
 
-/* Prevent bounce scroll on iOS */
-html, body {
-  overscroll-behavior: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Fix input zoom on iOS — keep font-size >= 16px on inputs */
+/* ── iOS input zoom fix ──────────────────────────────────────── */
 input, textarea, select {
   font-size: 16px !important;
 }
 
-/* Smooth scrolling in message list */
+/* ── Utility classes that map to theme vars ──────────────────── */
+.t-bg       { background: var(--bg) }
+.t-bg-2     { background: var(--bg-2) }
+.t-bg-3     { background: var(--bg-3) }
+.t-border   { border-color: var(--border) }
+.t-border-2 { border-color: var(--border-2) }
+.t-border-3 { border-color: var(--border-3) }
+.t-text-1   { color: var(--text-1) }
+.t-text-2   { color: var(--text-2) }
+.t-text-3   { color: var(--text-3) }
+.t-text-4   { color: var(--text-4) }
+.t-text-5   { color: var(--text-5) }
+.t-text-6   { color: var(--text-6) }
+
+/* ── Themed component shortcuts ─────────────────────────────── */
+.t-panel {
+  background: var(--bg);
+  border-color: var(--border);
+}
+.t-input {
+  background: var(--bg-2);
+  border-color: var(--border);
+  color: var(--text-1);
+}
+.t-input:focus {
+  outline: none;
+  border-color: var(--border-3);
+}
+.t-btn {
+  border-color: var(--border-3);
+  color: var(--text-3);
+  transition: all 0.15s;
+}
+.t-btn:hover {
+  border-color: var(--border-2);
+  color: var(--text-1);
+}
+.t-msg-mine {
+  background: var(--bg-2);
+  border-color: var(--border-3);
+}
+.t-msg-theirs {
+  background: var(--bg);
+  border-color: var(--border);
+}
+
 .messages-scroll {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
