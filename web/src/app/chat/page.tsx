@@ -13,6 +13,7 @@ import {
   type Contact, type StoredMessage
 } from '@/lib/storage'
 import Link from 'next/link'
+import { useTheme } from '@/lib/theme'
 import { CallManager, CallState } from '@/lib/call'
 import CallOverlay from '@/components/CallOverlay'
 
@@ -21,6 +22,7 @@ type Screen = 'unlock' | 'contacts' | 'chat' | 'settings'
 export default function ChatPage() {
   const nostrClient = useRef(new NostrChat()).current
   const callManager = useRef(new CallManager()).current
+  const { theme, toggle: toggleTheme } = useTheme()
   const [screen, setScreen] = useState<Screen>('unlock')
   const [identity, setIdentity] = useState<Identity | null>(null)
   const [unlockMode, setUnlockMode] = useState<'load' | 'create'>('load')
@@ -317,10 +319,10 @@ export default function ChatPage() {
   const connectedRelays = relayStatus.filter(r => r.connected).length
 
   return (
-    <main className="bg-zinc-950 text-zinc-300 flex flex-col" style={{ fontFamily: 'monospace', height: '100dvh', overflow: 'hidden' }}>
+    <main className="flex flex-col t-text-1" style={{ background: 'var(--bg)' }} style={{ fontFamily: 'monospace', height: '100dvh', overflow: 'hidden' }}>
 
       {/* Header */}
-      <div className="border-b border-zinc-800 px-3 py-2 flex items-center justify-between flex-shrink-0 gap-2">
+      <div className="border-b px-3 py-2 flex items-center justify-between flex-shrink-0 gap-2 t-border" style={{ background: 'var(--bg)' }}>
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {screen === 'chat' && (
             <button onClick={handleBackToContacts} className="text-zinc-500 hover:text-zinc-300 text-base px-1 flex-shrink-0">←</button>
@@ -353,6 +355,7 @@ export default function ChatPage() {
           {screen === 'settings' && (
             <button onClick={() => setScreen('contacts')} className="text-zinc-600 text-xs border border-zinc-800 px-2 py-1">←</button>
           )}
+          <button onClick={toggleTheme} className="text-zinc-700 hover:text-zinc-400 border border-zinc-800 px-2 py-1 transition-all text-xs" title="Toggle theme">{theme === 'dark' ? '☀' : '☾'}</button>
           {identity && (
             <button onClick={handleLock} className="text-zinc-700 hover:text-zinc-400 border border-zinc-800 px-2 py-1 transition-all text-xs">LOCK</button>
           )}
@@ -483,7 +486,7 @@ export default function ChatPage() {
                   const m = msg as StoredMessage & { plaintext?: string; imageUrl?: string }
                   return (
                     <div key={msg.id} className={`flex ${msg.mine ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-xs md:max-w-md border p-3 ${msg.mine ? 'border-zinc-600 bg-zinc-900' : 'border-zinc-800 bg-zinc-950'}`}>
+                      <div className={`max-w-xs md:max-w-md border p-3 ${msg.mine ? 't-msg-mine' : 't-msg-theirs'}`}>
                         {msg.type === 'text' && (
                           <div>
                             <p className="text-zinc-300 text-xs leading-relaxed whitespace-pre-wrap break-words">{m.plaintext || '[encrypted]'}</p>
@@ -529,7 +532,7 @@ export default function ChatPage() {
                 </div>
               )}
 
-              <div className="border-t border-zinc-800 p-3 flex gap-2 flex-shrink-0">
+              <div className="border-t p-3 flex gap-2 flex-shrink-0 t-border">
                 <button onClick={() => fileInputRef.current?.click()}
                   className="border border-zinc-800 hover:border-zinc-600 text-zinc-600 hover:text-zinc-400 px-3 text-xs transition-all flex-shrink-0" title="Attach file">
                   +
@@ -539,7 +542,7 @@ export default function ChatPage() {
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
                   placeholder={connected ? 'Message... (Enter to send, Shift+Enter for newline)' : 'Connecting...'}
                   disabled={!connected} autoComplete="off" spellCheck={false} rows={1}
-                  className="flex-1 bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-2 focus:outline-none focus:border-zinc-600 resize-none placeholder-zinc-800 disabled:opacity-50" />
+                  className="flex-1 t-input border text-xs p-2 resize-none disabled:opacity-50" style={{ fontFamily: 'monospace' }} />
                 <button onClick={handleSend} disabled={!input.trim() || !connected}
                   className="border border-zinc-600 hover:border-zinc-400 text-zinc-300 px-4 text-xs uppercase tracking-widest transition-all disabled:opacity-30 flex-shrink-0">
                   Send

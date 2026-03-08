@@ -8,6 +8,7 @@ export default function Landing() {
       <nav className="border-b border-zinc-900 px-6 py-4 flex items-center justify-between">
         <span className="text-zinc-400 text-sm tracking-widest uppercase">wspr</span>
         <div className="flex items-center gap-4">
+          <button onClick={toggleTheme} className="text-zinc-700 hover:text-zinc-400 text-xs transition-all">{theme === 'dark' ? '☀' : '☾'}</button>
           <a href="https://github.com/KarlMh/wspr"
             target="_blank" rel="noopener noreferrer"
             className="text-zinc-600 hover:text-zinc-400 text-xs transition-all tracking-widest uppercase">
@@ -156,6 +157,7 @@ export default function Landing() {
               No obfuscation, no telemetry, no server. If you don't trust the hosted version, run it locally in under a minute.
             </p>
           </div>
+          <button onClick={toggleTheme} className="text-zinc-700 hover:text-zinc-400 text-xs transition-all">{theme === 'dark' ? '☀' : '☾'}</button>
           <a href="https://github.com/KarlMh/wspr"
             target="_blank" rel="noopener noreferrer"
             className="text-xs uppercase tracking-widest border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 px-6 py-3 transition-all whitespace-nowrap">
