@@ -486,28 +486,36 @@ export default function ChatPage() {
                   const m = msg as StoredMessage & { plaintext?: string; imageUrl?: string }
                   return (
                     <div key={msg.id} className={`flex ${msg.mine ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-xs md:max-w-md border p-3 ${msg.mine ? 't-msg-mine' : 't-msg-theirs'}`}>
+                      <div style={msg.mine
+                        ? { background: 'var(--bg-2)', border: '1px solid var(--border-2)' }
+                        : { background: 'var(--bg)', border: '1px solid var(--border)' }}
+                        className="max-w-xs md:max-w-md p-3">
                         {msg.type === 'text' && (
                           <div>
-                            <p className="text-zinc-300 text-xs leading-relaxed whitespace-pre-wrap break-words">{m.plaintext || '[encrypted]'}</p>
+                            <p style={{ color: 'var(--text-1)' }} className="text-xs leading-relaxed whitespace-pre-wrap break-words">{m.plaintext || '[encrypted]'}</p>
                             {m.plaintext && (
                               <button onClick={() => navigator.clipboard.writeText(m.plaintext!)}
-                                className="text-zinc-800 hover:text-zinc-600 text-xs mt-1 transition-all">copy</button>
+                                style={{ color: 'var(--text-4)' }}
+                                className="text-xs mt-1 transition-all hover:opacity-70">copy</button>
                             )}
                           </div>
                         )}
                         {msg.type === 'image' && m.imageUrl && <img src={m.imageUrl} alt={msg.fileName} className="max-w-full max-h-48 object-contain" />}
                         {msg.type === 'image' && !m.imageUrl && (
-                          <button onClick={() => handleDecryptImage(msg)} className="text-zinc-600 hover:text-zinc-400 text-xs border border-zinc-800 px-3 py-2 transition-all">
+                          <button onClick={() => handleDecryptImage(msg)}
+                            style={{ color: 'var(--text-3)', border: '1px solid var(--border)' }}
+                            className="text-xs px-3 py-2 transition-all hover:opacity-70">
                             Decrypt image: {msg.fileName}
                           </button>
                         )}
                         {msg.type === 'file' && (
-                          <button onClick={() => handleDecryptFile(msg)} className="text-zinc-600 hover:text-zinc-400 text-xs border border-zinc-800 px-3 py-2 transition-all">
+                          <button onClick={() => handleDecryptFile(msg)}
+                            style={{ color: 'var(--text-3)', border: '1px solid var(--border)' }}
+                            className="text-xs px-3 py-2 transition-all hover:opacity-70">
                             ↓ {msg.fileName}
                           </button>
                         )}
-                        <p className="text-zinc-800 text-xs mt-2">
+                        <p style={{ color: 'var(--text-4)' }} className="text-xs mt-2">
                           {new Date(msg.timestamp).toTimeString().slice(0, 5)}
                           {!msg.mine && ` · ${msg.from.slice(0, 8)}...`}
                         </p>
