@@ -372,6 +372,7 @@ export default function ChatPage() {
             <IdentityGate
               backHref="/app"
               title="wspr / chat"
+              headerless
               onIdentityReady={(id) => { setIdentity(id); setScreen('contacts') }}
             />
           )}

@@ -10,6 +10,7 @@ type Props = {
   backLabel?: string
   title: string
   onIdentityReady: (identity: Identity) => void
+  headerless?: boolean  // true = no outer header/main, just the form (for embedding inside chat)
 }
 
 const S = {
@@ -22,7 +23,7 @@ const S = {
   t5:  { color: 'var(--text-5)' },
 }
 
-export default function IdentityGate({ backHref, backLabel = '← back', title, onIdentityReady }: Props) {
+export default function IdentityGate({ backHref, backLabel = '← back', title, onIdentityReady, headerless = false }: Props) {
   const { theme, toggle: toggleTheme } = useTheme()
   const [mode, setMode] = useState<'load' | 'create'>('load')
   const [pendingFile, setPendingFile] = useState<Uint8Array | null>(null)
@@ -75,9 +76,69 @@ export default function IdentityGate({ backHref, backLabel = '← back', title, 
 
   const inputStyle = { ...S.bg2, border: '1px solid var(--border)', ...S.t1 }
 
+  const body = (
+    <div className="flex-1 flex items-center justify-center p-6">
+      <div className="w-full max-w-sm flex flex-col gap-4">
+        <p style={S.t4} className="text-xs uppercase tracking-widest">Identity</p>
+        <p style={S.t4} className="text-xs leading-relaxed">
+          Your identity is a keypair in an encrypted <span style={S.t2}>.wspr</span> file. No server. No account.
+        </p>
+        <div className="flex gap-1">
+          {(['load', 'create'] as const).map(m => (
+            <button key={m} onClick={() => { setMode(m); setError('') }}
+              style={mode === m
+                ? { border: '1px solid var(--border-3)', ...S.t1 }
+                : { border: '1px solid var(--border)', ...S.t4 }}
+              className="flex-1 text-xs py-2 transition-all">
+              {m === 'load' ? 'Load identity' : 'Create new'}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'load' && (<>
+          <label style={pendingFile
+            ? { border: '1px solid var(--border-3)', background: 'var(--bg-2)' }
+            : { border: '1px solid var(--border)' }}
+            className="block p-4 cursor-pointer text-center transition-all hover:opacity-80">
+            <span style={S.t3} className="text-xs">{pendingFileName || 'Select .wspr file'}</span>
+            <input type="file" accept=".wspr" onChange={handleFileLoad} className="hidden" />
+          </label>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleUnlock()}
+            placeholder="Password" style={inputStyle}
+            className="w-full text-xs p-3 focus:outline-none" />
+          {error && <p style={S.t3} className="text-xs">{error}</p>}
+          <button onClick={handleUnlock} disabled={loading || !pendingFile || !password}
+            style={{ border: '1px solid var(--border-3)', ...S.t1, background: 'var(--bg-2)' }}
+            className="text-xs py-3 uppercase tracking-widest transition-all disabled:opacity-30 hover:opacity-80">
+            {loading ? 'Unlocking...' : 'Unlock'}
+          </button>
+        </>)}
+
+        {mode === 'create' && (<>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+            placeholder="Password (min 8 chars)" style={inputStyle}
+            className="w-full text-xs p-3 focus:outline-none" />
+          <input type="password" value={password2} onChange={e => setPassword2(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            placeholder="Confirm password" style={inputStyle}
+            className="w-full text-xs p-3 focus:outline-none" />
+          {error && <p style={S.t3} className="text-xs">{error}</p>}
+          <button onClick={handleCreate} disabled={loading || !password || !password2}
+            style={{ border: '1px solid var(--border-3)', ...S.t1, background: 'var(--bg-2)' }}
+            className="text-xs py-3 uppercase tracking-widest transition-all disabled:opacity-30 hover:opacity-80">
+            {loading ? 'Creating...' : 'Create & download identity'}
+          </button>
+          <p style={S.t5} className="text-xs">A .wspr file will download. Keep it safe — it is your identity.</p>
+        </>)}
+      </div>
+    </div>
+  )
+
+  if (headerless) return body
+
   return (
     <main style={{ ...S.bg, ...S.t1, fontFamily: 'monospace', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
       <div style={{ borderBottom: '1px solid var(--border)', ...S.bg }} className="px-4 py-3 flex items-center justify-between">
         <span style={S.t3} className="text-xs tracking-widest uppercase">{title}</span>
         <div className="flex items-center gap-3">
@@ -88,66 +149,7 @@ export default function IdentityGate({ backHref, backLabel = '← back', title, 
           <Link href={backHref} style={S.t4} className="text-xs uppercase tracking-widest hover:opacity-80">{backLabel}</Link>
         </div>
       </div>
-
-      {/* Body */}
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-sm flex flex-col gap-4">
-          <p style={S.t4} className="text-xs uppercase tracking-widest">Identity</p>
-          <p style={S.t4} className="text-xs leading-relaxed">
-            Your identity is a keypair in an encrypted <span style={S.t2}>.wspr</span> file. No server. No account.
-          </p>
-
-          {/* Mode tabs */}
-          <div className="flex gap-1">
-            {(['load', 'create'] as const).map(m => (
-              <button key={m} onClick={() => { setMode(m); setError('') }}
-                style={mode === m
-                  ? { border: '1px solid var(--border-3)', ...S.t1 }
-                  : { border: '1px solid var(--border)', ...S.t4 }}
-                className="flex-1 text-xs py-2 transition-all">
-                {m === 'load' ? 'Load identity' : 'Create new'}
-              </button>
-            ))}
-          </div>
-
-          {mode === 'load' && (<>
-            <label style={pendingFile
-              ? { border: '1px solid var(--border-3)', background: 'var(--bg-2)' }
-              : { border: '1px solid var(--border)' }}
-              className="block p-4 cursor-pointer text-center transition-all hover:opacity-80">
-              <span style={S.t3} className="text-xs">{pendingFileName || 'Select .wspr file'}</span>
-              <input type="file" accept=".wspr" onChange={handleFileLoad} className="hidden" />
-            </label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleUnlock()}
-              placeholder="Password" style={inputStyle}
-              className="w-full text-xs p-3 focus:outline-none" />
-            {error && <p style={S.t3} className="text-xs">{error}</p>}
-            <button onClick={handleUnlock} disabled={loading || !pendingFile || !password}
-              style={{ border: '1px solid var(--border-3)', ...S.t1, background: 'var(--bg-2)' }}
-              className="text-xs py-3 uppercase tracking-widest transition-all disabled:opacity-30 hover:opacity-80">
-              {loading ? 'Unlocking...' : 'Unlock'}
-            </button>
-          </>)}
-
-          {mode === 'create' && (<>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="Password (min 8 chars)" style={inputStyle}
-              className="w-full text-xs p-3 focus:outline-none" />
-            <input type="password" value={password2} onChange={e => setPassword2(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleCreate()}
-              placeholder="Confirm password" style={inputStyle}
-              className="w-full text-xs p-3 focus:outline-none" />
-            {error && <p style={S.t3} className="text-xs">{error}</p>}
-            <button onClick={handleCreate} disabled={loading || !password || !password2}
-              style={{ border: '1px solid var(--border-3)', ...S.t1, background: 'var(--bg-2)' }}
-              className="text-xs py-3 uppercase tracking-widest transition-all disabled:opacity-30 hover:opacity-80">
-              {loading ? 'Creating...' : 'Create & download identity'}
-            </button>
-            <p style={S.t5} className="text-xs">A .wspr file will download. Keep it safe — it is your identity.</p>
-          </>)}
-        </div>
-      </div>
+      {body}
     </main>
   )
 }
