@@ -319,7 +319,7 @@ export default function ChatPage() {
   const connectedRelays = relayStatus.filter(r => r.connected).length
 
   return (
-    <main className="flex flex-col t-text-1" style={{ background: 'var(--bg)' }} style={{ fontFamily: 'monospace', height: '100dvh', overflow: 'hidden' }}>
+    <main className="flex flex-col t-text-1" style={{ background: 'var(--bg)', fontFamily: 'monospace', height: '100dvh', overflow: 'hidden' }}>
 
       {/* Header */}
       <div className="border-b px-3 py-2 flex items-center justify-between flex-shrink-0 gap-2 t-border" style={{ background: 'var(--bg)' }}>
