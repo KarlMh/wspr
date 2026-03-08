@@ -218,18 +218,9 @@ export default function ChatPage() {
 
       // Listen for incoming calls
       callManager.onIncomingCall = (callId, from) => {
-        console.log("[CALL] incoming call UI triggered, callId:", callId)
-        setRemoteStream(null)
-        setCallDuration(0)
-        setLocalMuted(false)
-        setIncomingCallId(callId)
-        setIncomingCallFrom(from)
-        // Force reset to receiving regardless of previous state
-        setCallState('idle')
-        setTimeout(() => {
-          setCallState('receiving')
-          setShowCall(true)
-        }, 50)
+        setRemoteStream(null); setCallDuration(0); setLocalMuted(false)
+        setIncomingCallId(callId); setIncomingCallFrom(from)
+        setCallState('receiving'); setShowCall(true)
       }
       callManager.onStateChange = (state) => {
         setCallState(state)
@@ -247,15 +238,7 @@ export default function ChatPage() {
             setCallState('idle')
           }, 1500)
         }
-        if (state === 'ended' || state === 'idle') {
-          // Auto-restart listener after any call ends
-          setTimeout(() => {
-            const id = getSessionIdentity()
-            if (id && activeContactRef.current && sharedSecretRef.current) {
-              callManager.listenForCalls(id.publicKey, sharedSecretRef.current, activeContactRef.current.publicKey)
-            }
-          }, 2000)
-        }
+
       }
       callManager.onRemoteStream = (stream) => {
         setRemoteStream(stream)
@@ -691,15 +674,8 @@ export default function ChatPage() {
             setIncomingCallId('')
           }}
           onHangup={async () => {
-            callManager.hangup(identity?.publicKey||'', activeContact?.publicKey||'', sharedSecret || new Uint8Array())
-            setRemoteStream(null)
-            setCallDuration(0)
-            setLocalMuted(false)
-            // Restart listener so future calls work
             if (identity && activeContact && sharedSecret) {
-              setTimeout(async () => {
-                await callManager.listenForCalls(identity.publicKey, sharedSecret, activeContact.publicKey)
-              }, 1500)
+              await callManager.hangup(identity.publicKey, activeContact.publicKey, sharedSecret)
             }
           }}
           onMute={() => {
