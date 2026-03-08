@@ -13,6 +13,7 @@ import {
   type Contact, type StoredMessage
 } from '@/lib/storage'
 import Link from 'next/link'
+import IdentityGate from '@/components/IdentityGate'
 import { useTheme } from '@/lib/theme'
 import { CallManager, CallState } from '@/lib/call'
 import CallOverlay from '@/components/CallOverlay'
@@ -368,74 +369,37 @@ export default function ChatPage() {
 
           {/* UNLOCK */}
           {screen === 'unlock' && (
-            <div className="flex-1 flex items-center justify-center p-6">
-              <div className="w-full max-w-sm flex flex-col gap-4">
-                <p className="text-zinc-500 text-xs uppercase tracking-widest">wspr chat</p>
-                <p className="text-zinc-700 text-xs leading-relaxed">Your identity is a keypair in an encrypted <span className="text-zinc-500">.wspr</span> file. No server. No account.</p>
-                <div className="flex gap-1">
-                  {(['load', 'create'] as const).map(m => (
-                    <button key={m} onClick={() => { setUnlockMode(m); setUnlockError('') }}
-                      className={`flex-1 text-xs py-2 border transition-all ${unlockMode === m ? 'border-zinc-500 text-zinc-300' : 'border-zinc-800 text-zinc-600 hover:border-zinc-700'}`}>
-                      {m === 'load' ? 'Load identity' : 'Create new'}
-                    </button>
-                  ))}
-                </div>
-                {unlockMode === 'load' && (<>
-                  <label className={`block border p-4 cursor-pointer text-center transition-all ${pendingFile ? 'border-zinc-600 bg-zinc-900' : 'border-zinc-800 hover:border-zinc-700'}`}>
-                    <span className="text-zinc-500 text-xs">{pendingFileName || 'Select .wspr file'}</span>
-                    <input type="file" accept=".wspr" onChange={handleFileLoad} className="hidden" />
-                  </label>
-                  <input type="password" value={unlockPassword} onChange={e => setUnlockPassword(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleUnlock()} placeholder="Password"
-                    className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 placeholder-zinc-800" />
-                  {unlockError && <p className="text-zinc-500 text-xs">{unlockError}</p>}
-                  <button onClick={handleUnlock} disabled={unlockLoading || !pendingFile || !unlockPassword}
-                    className="border border-zinc-600 text-zinc-300 text-xs py-3 uppercase tracking-widest hover:bg-zinc-900 transition-all disabled:opacity-30">
-                    {unlockLoading ? 'Unlocking...' : 'Unlock'}
-                  </button>
-                </>)}
-                {unlockMode === 'create' && (<>
-                  <input type="password" value={unlockPassword} onChange={e => setUnlockPassword(e.target.value)}
-                    placeholder="Password (min 8 chars)"
-                    className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 placeholder-zinc-800" />
-                  <input type="password" value={unlockPassword2} onChange={e => setUnlockPassword2(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleCreate()} placeholder="Confirm password"
-                    className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 placeholder-zinc-800" />
-                  {unlockError && <p className="text-zinc-500 text-xs">{unlockError}</p>}
-                  <button onClick={handleCreate} disabled={unlockLoading || !unlockPassword || !unlockPassword2}
-                    className="border border-zinc-600 text-zinc-300 text-xs py-3 uppercase tracking-widest hover:bg-zinc-900 transition-all disabled:opacity-30">
-                    {unlockLoading ? 'Creating...' : 'Create & download identity'}
-                  </button>
-                  <p className="text-zinc-800 text-xs">A .wspr file will download. Keep it safe — it is your identity.</p>
-                </>)}
-              </div>
-            </div>
+            <IdentityGate
+              backHref="/app"
+              title="wspr / chat"
+              onIdentityReady={(id) => { setIdentity(id); setScreen('contacts') }}
+            />
           )}
 
           {/* CONTACTS */}
           {screen === 'contacts' && identity && (
             <div className="flex-1 overflow-y-auto">
-              <div className="border-b border-zinc-800 p-4">
-                <p className="text-zinc-600 text-xs uppercase tracking-widest mb-2">Your Public Key</p>
-                <div className="bg-zinc-900 border border-zinc-800 p-3 mb-2">
-                  <p className="text-zinc-500 text-xs break-all leading-relaxed">{identity.publicKey}</p>
+              <div style={{ borderBottom: '1px solid var(--border)' }} className="p-4">
+                <p style={{ color: 'var(--text-4)' }} className="text-xs uppercase tracking-widest mb-2">Your Public Key</p>
+                <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border)' }} className="p-3 mb-2">
+                  <p style={{ color: 'var(--text-3)' }} className="text-xs break-all leading-relaxed">{identity.publicKey}</p>
                 </div>
                 <button onClick={() => navigator.clipboard.writeText(identity.publicKey)}
-                  className="w-full text-xs text-zinc-600 hover:text-zinc-400 border border-zinc-800 py-2 transition-all">
+                  style={{ color: 'var(--text-4)', border: '1px solid var(--border)' }} className="w-full text-xs py-2 transition-all hover:opacity-80">
                   Copy public key
                 </button>
               </div>
-              <div className="border-b border-zinc-800 p-4">
-                <p className="text-zinc-600 text-xs uppercase tracking-widest mb-3">Add Contact</p>
+              <div style={{ borderBottom: '1px solid var(--border)' }} className="p-4">
+                <p style={{ color: 'var(--text-4)' }} className="text-xs uppercase tracking-widest mb-3">Add Contact</p>
                 <div className="flex flex-col gap-2">
                   <input type="text" value={newContactName} onChange={e => setNewContactName(e.target.value)}
                     placeholder="Name" autoComplete="off"
-                    className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 placeholder-zinc-800" />
+                    style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', color: 'var(--text-1)' }} className="w-full text-xs p-3 focus:outline-none" />
                   <textarea value={newContactKey} onChange={e => setNewContactKey(e.target.value)}
                     placeholder="Their public key..." autoComplete="off" spellCheck={false}
-                    className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 resize-none h-16 placeholder-zinc-800" />
+                    style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', color: 'var(--text-1)' }} className="w-full text-xs p-3 focus:outline-none resize-none h-16" />
                   <button onClick={handleAddContact} disabled={!newContactName.trim() || !newContactKey.trim()}
-                    className={`text-xs py-2 border uppercase tracking-widest transition-all disabled:opacity-30 ${contactAdded ? 'border-zinc-500 text-zinc-300' : 'border-zinc-600 text-zinc-300 hover:bg-zinc-900'}`}>
+                    style={{ border: '1px solid var(--border-3)', color: 'var(--text-1)' }} className="text-xs py-2 uppercase tracking-widest transition-all disabled:opacity-30 hover:opacity-80">
                     {contactAdded ? 'Contact added ✓' : 'Add Contact'}
                   </button>
                 </div>
@@ -579,11 +543,11 @@ export default function ChatPage() {
               </div>
               <div className="border border-zinc-900 p-4 mb-4">
                 <p className="text-zinc-500 text-xs uppercase tracking-widest mb-2">Your Public Key</p>
-                <div className="bg-zinc-900 border border-zinc-800 p-3 mb-2">
+                <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border)' }} className="p-3 mb-2">
                   <p className="text-zinc-500 text-xs break-all">{identity.publicKey}</p>
                 </div>
                 <button onClick={() => navigator.clipboard.writeText(identity.publicKey)}
-                  className="w-full text-xs text-zinc-600 hover:text-zinc-400 border border-zinc-800 py-2 transition-all">Copy</button>
+                  style={{ color: 'var(--text-4)', border: '1px solid var(--border)' }} className="w-full text-xs py-2 transition-all hover:opacity-80">Copy</button>
               </div>
               <div className="border border-zinc-900 p-4 mb-4">
                 <p className="text-zinc-500 text-xs uppercase tracking-widest mb-2">Log</p>
@@ -613,7 +577,7 @@ export default function ChatPage() {
         {/* Sidebar */}
         {screen === 'chat' && showSidebar && (
           <div className="w-64 border-l border-zinc-800 flex flex-col overflow-y-auto flex-shrink-0">
-            <div className="border-b border-zinc-800 p-4">
+            <div style={{ borderBottom: '1px solid var(--border)' }} className="p-4">
               <p className="text-zinc-600 text-xs uppercase tracking-widest mb-3">Relays</p>
               {relayStatus.length === 0 && <p className="text-zinc-800 text-xs">Connecting...</p>}
               {relayStatus.map(r => (
@@ -623,7 +587,7 @@ export default function ChatPage() {
                 </div>
               ))}
             </div>
-            <div className="border-b border-zinc-800 p-4">
+            <div style={{ borderBottom: '1px solid var(--border)' }} className="p-4">
               <p className="text-zinc-600 text-xs uppercase tracking-widest mb-3">Network</p>
               {[['Protocol','Nostr'],['Status',networkStatus],['IP exposed','No'],['Encryption','AES-256-GCM']].map(([k,v]) => (
                 <div key={k} className="flex justify-between mb-2">
@@ -633,7 +597,7 @@ export default function ChatPage() {
               ))}
             </div>
             {safetyNumber && (
-              <div className="border-b border-zinc-800 p-4">
+              <div style={{ borderBottom: '1px solid var(--border)' }} className="p-4">
                 <p className="text-zinc-600 text-xs uppercase tracking-widest mb-3">Safety Number</p>
                 <div className="bg-zinc-900 border border-zinc-800 p-3 mb-3">
                   <p className="text-zinc-300 text-xs tracking-widest font-mono text-center">{safetyNumber}</p>

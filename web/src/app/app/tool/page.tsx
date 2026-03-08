@@ -7,6 +7,7 @@ import { deriveSharedSecret, importPrivateKey, generateSafetyNumber, generateKey
 import { encryptIdentity, downloadIdentityFile } from '@/lib/identity'
 import { decryptIdentity, readFileAsBytes, setSessionIdentity, getSessionIdentity, type Identity } from '@/lib/identity'
 import { useTheme } from '@/lib/theme'
+import IdentityGate from '@/components/IdentityGate'
 import Link from 'next/link'
 
 type Step = 'identity' | 'exchange' | 'ready'
@@ -259,56 +260,11 @@ export default function ToolPage() {
   )
 
   if (step === 'identity') return (
-    <PageShell>
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-sm flex flex-col gap-4">
-          <p style={S.t4} className="text-xs uppercase tracking-widest">Identity</p>
-          <div className="flex gap-1">
-            {(['load', 'create'] as const).map(m => (
-              <button key={m} onClick={() => { setIdentityMode(m); setUnlockError(''); setCreateError('') }}
-                style={identityMode === m
-                  ? { border: '1px solid var(--border-3)', ...S.t1 }
-                  : { border: '1px solid var(--border)', ...S.t4 }}
-                className="flex-1 text-xs py-2 transition-all">
-                {m === 'load' ? 'Load identity' : 'Create new'}
-              </button>
-            ))}
-          </div>
-          {identityMode === 'load' && (<>
-            <p style={S.t4} className="text-xs leading-relaxed">Load your <span style={S.t2}>.wspr</span> file.</p>
-            <label style={pendingFile ? { border: '1px solid var(--border-3)', background: 'var(--bg-2)' } : { border: '1px solid var(--border)' }}
-              className="block p-4 cursor-pointer text-center transition-all">
-              <span style={S.t3} className="text-xs">{pendingFileName || 'Select .wspr file'}</span>
-              <input type="file" accept=".wspr" onChange={handleWsprFile} className="hidden" />
-            </label>
-            <input type="password" value={unlockPassword} onChange={e => setUnlockPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleUnlock()} placeholder="Password"
-              style={{ ...S.bg2, border: '1px solid var(--border)', ...S.t1 }} className={inputCls} />
-            {unlockError && <p style={S.t3} className="text-xs">{unlockError}</p>}
-            <button onClick={handleUnlock} disabled={unlockLoading || !pendingFile || !unlockPassword}
-              style={{ border: '1px solid var(--border-3)', ...S.t2 }}
-              className="text-xs py-3 uppercase tracking-widest transition-all disabled:opacity-30 hover:opacity-80">
-              {unlockLoading ? 'Unlocking...' : 'Unlock'}
-            </button>
-          </>)}
-          {identityMode === 'create' && (<>
-            <p style={S.t4} className="text-xs leading-relaxed">Generate a new keypair. A <span style={S.t2}>.wspr</span> file will download.</p>
-            <input type="password" value={createPassword} onChange={e => setCreatePassword(e.target.value)}
-              placeholder="Password (min 8 chars)"
-              style={{ ...S.bg2, border: '1px solid var(--border)', ...S.t1 }} className={inputCls} />
-            <input type="password" value={createPassword2} onChange={e => setCreatePassword2(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleCreate()} placeholder="Confirm password"
-              style={{ ...S.bg2, border: '1px solid var(--border)', ...S.t1 }} className={inputCls} />
-            {createError && <p style={S.t3} className="text-xs">{createError}</p>}
-            <button onClick={handleCreate} disabled={unlockLoading || !createPassword || !createPassword2}
-              style={{ border: '1px solid var(--border-3)', ...S.t2 }}
-              className="text-xs py-3 uppercase tracking-widest transition-all disabled:opacity-30 hover:opacity-80">
-              {unlockLoading ? 'Creating...' : 'Create & download identity'}
-            </button>
-          </>)}
-        </div>
-      </div>
-    </PageShell>
+    <IdentityGate
+      backHref="/app"
+      title="wspr / tool"
+      onIdentityReady={(id) => { setIdentity(id); setStep('exchange') }}
+    />
   )
 
   if (step === 'exchange' && !safetyNumber) return (
