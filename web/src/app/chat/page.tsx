@@ -203,9 +203,10 @@ export default function ChatPage() {
       const secret = await deriveSharedSecret(privateKey, contact.publicKey)
       const safety = await generateSafetyNumber(identity.publicKey, contact.publicKey)
       setSharedSecret(secret); sharedSecretRef.current = secret; setSafetyNumber(safety)
+      const myFromPrefix = identity.publicKey.slice(0, 16)
       const persisted = loadChannelMessages(identity.publicKey, contact.publicKey).map(m => ({
         ...m,
-        mine: m.mine // preserved from save time — sender set mine:true, receiver set mine:false
+        mine: m.from === myFromPrefix
       }))
       setMessages(persisted)
       onMessageRef.current = async (nostrMsg: NostrMessage) => {
