@@ -42,7 +42,7 @@ async function hkdf(
   length = 32
 ): Promise<Uint8Array> {
   const enc = new TextEncoder()
-  const keyMaterial = await crypto.subtle.importKey('raw', inputKey, 'HKDF', false, ['deriveKey', 'deriveBits'])
+  const keyMaterial = await crypto.subtle.importKey('raw', inputKey.buffer.slice(inputKey.byteOffset, inputKey.byteOffset + inputKey.byteLength) as ArrayBuffer, 'HKDF', false, ['deriveKey', 'deriveBits'])
   const bits = await crypto.subtle.deriveBits(
     { name: 'HKDF', hash: 'SHA-256', salt, info: enc.encode(info) },
     keyMaterial,
