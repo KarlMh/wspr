@@ -343,14 +343,14 @@ export default function ChatPage() {
       <div className="border-b px-3 py-2 flex items-center justify-between flex-shrink-0 gap-2 t-border" style={{ background: 'var(--bg)' }}>
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {screen === 'chat' && (
-            <button onClick={handleBackToContacts} className="text-zinc-500 hover:text-zinc-300 text-base px-1 flex-shrink-0">←</button>
+            <button onClick={handleBackToContacts} style={{ color: "var(--text-3)" }} className="text-base px-1 flex-shrink-0 hover:opacity-80">←</button>
           )}
           <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${networkStatus === 'online' ? 'bg-zinc-400' : networkStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-zinc-700'}`} />
-          <span className="text-zinc-500 text-xs tracking-widest uppercase truncate">
+          <span style={{ color: "var(--text-3)" }} className="text-xs tracking-widest uppercase truncate">
             {screen === 'chat' && activeContact ? activeContact.name : 'wspr'}
           </span>
           {screen === 'chat' && callState === 'connected' && (
-            <span className="text-zinc-400 text-xs font-mono flex-shrink-0">
+            <span style={{ color: "var(--text-2)" }} className="text-xs font-mono flex-shrink-0">
               {Math.floor(callDuration/60).toString().padStart(2,'0')}:{(callDuration%60).toString().padStart(2,'0')}
             </span>
           )}
@@ -362,25 +362,25 @@ export default function ChatPage() {
               setCallState('idle')
               setShowCall(true)
               await callManager.startCall(identity.publicKey, activeContact.publicKey, sharedSecret, false)
-            }} className="text-zinc-600 hover:text-zinc-300 border border-zinc-800 px-2 py-1 transition-all text-xs">☎</button>
+            }} style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="px-2 py-1 transition-all text-xs hover:opacity-80">☎</button>
           )}
           {screen === 'chat' && (
-            <button onClick={() => setShowSidebar(v => !v)} className="text-zinc-600 hover:text-zinc-300 border border-zinc-800 px-2 py-1 transition-all text-xs">≡</button>
+            <button onClick={() => setShowSidebar(v => !v)} style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="px-2 py-1 transition-all text-xs hover:opacity-80">≡</button>
           )}
           {screen === 'chat' && (
             <button onClick={() => setShowSearch(v => !v)} style={{ color: 'var(--text-4)', border: '1px solid var(--border)' }} className="px-2 py-1 text-xs transition-all hover:opacity-80">⌕</button>
           )}
           {identity && screen !== 'settings' && screen !== 'chat' && (
-            <button onClick={() => setScreen('settings')} className="text-zinc-600 hover:text-zinc-300 border border-zinc-800 px-2 py-1 transition-all text-xs hidden sm:block">SET</button>
+            <button onClick={() => setScreen('settings')} style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="px-2 py-1 transition-all text-xs hidden sm:block hover:opacity-80">SET</button>
           )}
           {screen === 'settings' && (
-            <button onClick={() => setScreen('contacts')} className="text-zinc-600 text-xs border border-zinc-800 px-2 py-1">←</button>
+            <button onClick={() => setScreen('contacts')} style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="text-xs px-2 py-1 hover:opacity-80">←</button>
           )}
-          <button onClick={toggleTheme} className="text-zinc-700 hover:text-zinc-400 border border-zinc-800 px-2 py-1 transition-all text-xs" title="Toggle theme">{theme === 'dark' ? '☀' : '☾'}</button>
+          <button onClick={toggleTheme} style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="px-2 py-1 transition-all text-xs hover:opacity-80" title="Toggle theme">{theme === 'dark' ? '☀' : '☾'}</button>
           {identity && (
-            <button onClick={handleLock} className="text-zinc-700 hover:text-zinc-400 border border-zinc-800 px-2 py-1 transition-all text-xs">LOCK</button>
+            <button onClick={handleLock} style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="px-2 py-1 transition-all text-xs hover:opacity-80">LOCK</button>
           )}
-          <Link href="/app" className="text-zinc-700 hover:text-zinc-400 text-xs border border-zinc-800 px-2 py-1 hidden sm:block">←</Link>
+          <Link href="/app" style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="text-xs px-2 py-1 hidden sm:block hover:opacity-80">←</Link>
         </div>
       </div>
 
@@ -428,25 +428,25 @@ export default function ChatPage() {
                 </div>
               </div>
               <div className="p-4">
-                <p className="text-zinc-600 text-xs uppercase tracking-widest mb-3">
-                  Contacts {contacts.length > 0 && <span className="text-zinc-800">({contacts.length})</span>}
+                <p style={{ color: "var(--text-4)" }} className="text-xs uppercase tracking-widest mb-3">
+                  Contacts {contacts.length > 0 && <span style={{ color: "var(--text-5)" }}>({contacts.length})</span>}
                 </p>
-                {contacts.length === 0 && <p className="text-zinc-800 text-xs">No contacts yet. Add one above.</p>}
+                {contacts.length === 0 && <p style={{ color: "var(--text-5)" }} className="text-xs">No contacts yet. Add one above.</p>}
                 {contacts.map(contact => (
-                  <div key={contact.id} className="border border-zinc-900 hover:border-zinc-800 mb-2 transition-all">
+                  <div key={contact.id} style={{ border: "1px solid var(--border)" }} className="mb-2 transition-all hover:opacity-90">
                     <div className="flex items-center justify-between p-3">
                       <button onClick={() => handleOpenChat(contact)} className="flex-1 text-left">
-                        <p className="text-zinc-300 text-xs">{contact.name}</p>
-                        <p className="text-zinc-700 text-xs mt-1">{contact.publicKey.slice(0, 32)}...</p>
-                        {contact.lastSeen && <p className="text-zinc-800 text-xs mt-1">last seen {new Date(contact.lastSeen).toLocaleDateString()}</p>}
+                        <p style={{ color: "var(--text-1)" }} className="text-xs">{contact.name}</p>
+                        <p style={{ color: "var(--text-4)" }} className="text-xs mt-1">{contact.publicKey.slice(0, 32)}...</p>
+                        {contact.lastSeen && <p style={{ color: "var(--text-5)" }} className="text-xs mt-1">last seen {new Date(contact.lastSeen).toLocaleDateString()}</p>}
                       </button>
                       <div className="flex items-center gap-2 ml-3">
                         <button onClick={() => handleOpenChat(contact)}
-                          className="text-xs border border-zinc-700 hover:border-zinc-500 text-zinc-500 hover:text-zinc-300 px-3 py-1 transition-all">
+                          style={{ color: "var(--text-3)", border: "1px solid var(--border-2)" }} className="text-xs px-3 py-1 transition-all hover:opacity-80">
                           Chat →
                         </button>
                         <button onClick={() => handleDeleteContact(contact.id)}
-                          className="text-xs text-zinc-800 hover:text-zinc-500 transition-all px-1">✕</button>
+                          style={{ color: "var(--text-5)" }} className="text-xs transition-all px-1 hover:opacity-80">✕</button>
                       </div>
                     </div>
                   </div>
@@ -459,8 +459,8 @@ export default function ChatPage() {
           {screen === 'chat' && (
             <>
               {connecting && (
-                <div className="border-b border-zinc-800 px-4 py-2 flex-shrink-0">
-                  <p className="text-yellow-600 text-xs animate-pulse">Connecting to Nostr network...</p>
+                <div style={{ borderBottom: "1px solid var(--border)" }} className="px-4 py-2 flex-shrink-0">
+                  <p style={{ color: "#ca8a04" }} className="text-xs animate-pulse">Connecting to Nostr network...</p>
                 </div>
               )}
               {/* Search bar */}
@@ -481,7 +481,7 @@ export default function ChatPage() {
               <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 relative">
                 {messages.length === 0 && !connecting && (
                   <div className="flex-1 flex items-center justify-center">
-                    <p className="text-zinc-800 text-xs">No messages yet.</p>
+                    <p style={{ color: "var(--text-5)" }} className="text-xs">No messages yet.</p>
                   </div>
                 )}
                 {messages
@@ -542,14 +542,14 @@ export default function ChatPage() {
               {/* New message indicator */}
               {hasNewMessage && !isAtBottom && (
                 <button onClick={scrollToBottom}
-                  className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-zinc-800 border border-zinc-600 text-zinc-300 text-xs px-4 py-2 transition-all hover:bg-zinc-700 z-10">
+                  style={{ background: "var(--bg-3)", border: "1px solid var(--border-3)", color: "var(--text-1)" }} className="absolute bottom-20 left-1/2 -translate-x-1/2 text-xs px-4 py-2 transition-all z-10 hover:opacity-80">
                   ↓ New message
                 </button>
               )}
 
               {sendError && (
                 <div className="border-t border-red-900 px-4 py-2 flex-shrink-0">
-                  <button onClick={() => { setSendError(''); handleSend() }} className="text-zinc-500 text-xs hover:text-zinc-300 transition-all">{sendError}</button>
+                  <button onClick={() => { setSendError(''); handleSend() }} style={{ color: "var(--text-3)" }} className="text-xs hover:opacity-80 transition-all">{sendError}</button>
                 </div>
               )}
 
@@ -561,7 +561,7 @@ export default function ChatPage() {
               )}
               <div className="border-t p-3 flex gap-2 flex-shrink-0 t-border">
                 <button onClick={() => fileInputRef.current?.click()}
-                  className="border border-zinc-800 hover:border-zinc-600 text-zinc-600 hover:text-zinc-400 px-3 text-xs transition-all flex-shrink-0" title="Attach file">
+                  style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="px-3 text-xs transition-all flex-shrink-0 hover:opacity-80" title="Attach file">
                   +
                 </button>
                 <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" />
@@ -571,7 +571,7 @@ export default function ChatPage() {
                   disabled={!connected} autoComplete="off" spellCheck={false} rows={1}
                   className="flex-1 t-input border text-xs p-2 resize-none disabled:opacity-50" style={{ fontFamily: 'monospace' }} />
                 <button onClick={handleSend} disabled={!input.trim() || !connected}
-                  className="border border-zinc-600 hover:border-zinc-400 text-zinc-300 px-4 text-xs uppercase tracking-widest transition-all disabled:opacity-30 flex-shrink-0">
+                  style={{ color: "var(--text-1)", border: "1px solid var(--border-3)" }} className="px-4 text-xs uppercase tracking-widest transition-all disabled:opacity-30 flex-shrink-0 hover:opacity-80">
                   Send
                 </button>
               </div>
@@ -598,38 +598,38 @@ export default function ChatPage() {
           {/* SETTINGS */}
           {screen === 'settings' && identity && (
             <div className="flex-1 overflow-y-auto p-4">
-              <p className="text-zinc-600 text-xs uppercase tracking-widest mb-6">Settings</p>
+              <p style={{ color: "var(--text-4)" }} className="text-xs uppercase tracking-widest mb-6">Settings</p>
               <div className="border border-zinc-900 p-4 mb-4">
-                <p className="text-zinc-500 text-xs uppercase tracking-widest mb-2">Re-download Identity</p>
-                <p className="text-zinc-700 text-xs mb-3">Download a new encrypted copy of your identity file.</p>
+                <p style={{ color: "var(--text-3)" }} className="text-xs uppercase tracking-widest mb-2">Re-download Identity</p>
+                <p style={{ color: "var(--text-4)" }} className="text-xs mb-3">Download a new encrypted copy of your identity file.</p>
                 <input type="password" placeholder="Password to encrypt with" id="redownload-pw"
-                  className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs p-3 focus:outline-none focus:border-zinc-600 placeholder-zinc-800 mb-2" />
+                  style={{ background: "var(--bg-2)", border: "1px solid var(--border)", color: "var(--text-1)" }} className="w-full text-xs p-3 focus:outline-none mb-2" />
                 <button onClick={async () => {
                   const pw = (document.getElementById('redownload-pw') as HTMLInputElement)?.value
                   if (!pw) return
                   const encrypted = await encryptIdentity(identity, pw)
                   downloadIdentityFile(encrypted, 'wspr-identity.wspr')
-                }} className="w-full border border-zinc-700 text-zinc-400 text-xs py-2 uppercase tracking-widest hover:bg-zinc-900 transition-all">
+                }} style={{ border: "1px solid var(--border-2)", color: "var(--text-3)" }} className="w-full text-xs py-2 uppercase tracking-widest transition-all hover:opacity-80">
                   Download .wspr file
                 </button>
               </div>
               <div className="border border-zinc-900 p-4 mb-4">
-                <p className="text-zinc-500 text-xs uppercase tracking-widest mb-2">Your Public Key</p>
+                <p style={{ color: "var(--text-3)" }} className="text-xs uppercase tracking-widest mb-2">Your Public Key</p>
                 <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border)' }} className="p-3 mb-2">
-                  <p className="text-zinc-500 text-xs break-all">{identity.publicKey}</p>
+                  <p style={{ color: "var(--text-3)" }} className="text-xs break-all">{identity.publicKey}</p>
                 </div>
                 <button onClick={() => navigator.clipboard.writeText(identity.publicKey)}
                   style={{ color: 'var(--text-4)', border: '1px solid var(--border)' }} className="w-full text-xs py-2 transition-all hover:opacity-80">Copy</button>
               </div>
               <div className="border border-zinc-900 p-4 mb-4">
-                <p className="text-zinc-500 text-xs uppercase tracking-widest mb-2">Log</p>
-                {log.length === 0 && <p className="text-zinc-800 text-xs">No activity.</p>}
+                <p style={{ color: "var(--text-3)" }} className="text-xs uppercase tracking-widest mb-2">Log</p>
+                {log.length === 0 && <p style={{ color: "var(--text-5)" }} className="text-xs">No activity.</p>}
                 {log.map((entry, i) => (
-                  <p key={i} className={`text-xs mb-1 ${entry.includes('ERROR') ? 'text-zinc-500' : 'text-zinc-700'}`}>{entry}</p>
+                  <p key={i} style={{ color: entry.includes('ERROR') ? 'var(--text-3)' : 'var(--text-4)' }} className="text-xs mb-1">{entry}</p>
                 ))}
               </div>
               <div className="border border-zinc-900 p-4">
-                <p className="text-zinc-500 text-xs uppercase tracking-widest mb-2">Danger Zone</p>
+                <p style={{ color: "var(--text-3)" }} className="text-xs uppercase tracking-widest mb-2">Danger Zone</p>
                 <button onClick={() => {
                   if (!confirm('Clear all local chat history and contacts? Your identity file is not affected.')) return
                   const keys: string[] = []
@@ -638,7 +638,7 @@ export default function ChatPage() {
                   }
                   keys.forEach(k => localStorage.removeItem(k))
                   setContacts([]); addLog('Local data cleared.')
-                }} className="w-full border border-zinc-900 text-zinc-700 hover:border-red-900 hover:text-red-800 text-xs py-2 uppercase tracking-widest transition-all">
+                }} style={{ border: "1px solid var(--border)", color: "var(--text-4)" }} className="w-full text-xs py-2 uppercase tracking-widest transition-all hover:border-red-800 hover:text-red-700">
                   Clear local data
                 </button>
               </div>
@@ -650,20 +650,20 @@ export default function ChatPage() {
         {screen === 'chat' && showSidebar && (
           <div className="w-64 border-l border-zinc-800 flex flex-col overflow-y-auto flex-shrink-0">
             <div style={{ borderBottom: '1px solid var(--border)' }} className="p-4">
-              <p className="text-zinc-600 text-xs uppercase tracking-widest mb-3">Relays</p>
-              {relayStatus.length === 0 && <p className="text-zinc-800 text-xs">Connecting...</p>}
+              <p style={{ color: "var(--text-4)" }} className="text-xs uppercase tracking-widest mb-3">Relays</p>
+              {relayStatus.length === 0 && <p style={{ color: "var(--text-5)" }} className="text-xs">Connecting...</p>}
               {relayStatus.map(r => (
                 <div key={r.url} className="flex items-center gap-2 mb-1">
                   <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${r.connected ? 'bg-zinc-400' : 'bg-zinc-800'}`} />
-                  <span className="text-zinc-700 text-xs truncate">{typeof r.url === 'string' ? r.url.replace('wss://', '') : r.url}</span>
+                  <span style={{ color: "var(--text-4)" }} className="text-xs truncate">{typeof r.url === 'string' ? r.url.replace('wss://', '') : r.url}</span>
                 </div>
               ))}
             </div>
             <div style={{ borderBottom: '1px solid var(--border)' }} className="p-4">
-              <p className="text-zinc-600 text-xs uppercase tracking-widest mb-3">Network</p>
+              <p style={{ color: "var(--text-4)" }} className="text-xs uppercase tracking-widest mb-3">Network</p>
               {[['Protocol','Nostr'],['Status',networkStatus],['IP exposed','No'],['Encryption','AES-256-GCM']].map(([k,v]) => (
                 <div key={k} className="flex justify-between mb-2">
-                  <span className="text-zinc-700 text-xs">{k}</span>
+                  <span style={{ color: "var(--text-4)" }} className="text-xs">{k}</span>
                   <span className={`text-xs ${k==='Status'&&networkStatus==='online'?'text-zinc-400':'text-zinc-500'}`}>{v}</span>
                 </div>
               ))}
