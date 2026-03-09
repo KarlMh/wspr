@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { generateKeyPair, deriveSharedSecret, exportPrivateKey, importPrivateKey, generateSafetyNumber } from '@/lib/keys'
 import { encryptMessage, decryptMessage, encryptFile, decryptFile } from '@/lib/chat-crypto'
+import { ratchetEncrypt, ratchetDecrypt, initRatchet, clearRatchet } from '@/lib/ratchet'
 import { NostrChat, NostrMessage, RelayStatus } from '@/lib/nostr'
 import {
   encryptIdentity, decryptIdentity, downloadIdentityFile,
@@ -209,9 +210,13 @@ export default function ChatPage() {
         mine: m.from === myFromPrefix
       }))
       setMessages(persisted)
+      // Init ratchet for this session
+      await initRatchet(secret, identity.publicKey, contact.publicKey)
       onMessageRef.current = async (nostrMsg: NostrMessage) => {
         const currentSecret = sharedSecretRef.current; if (!currentSecret) return
-        const plaintext = await decryptMessage(nostrMsg.ciphertext, currentSecret, nostrMsg.id)
+        const plaintext = nostrMsg.ratchetPub
+          ? await ratchetDecrypt(nostrMsg.ciphertext, nostrMsg.ratchetPub, identity.publicKey, activeContactRef.current!.publicKey, currentSecret)
+          : await decryptMessage(nostrMsg.ciphertext, currentSecret, nostrMsg.id)
         if (!plaintext) return
         const stored: StoredMessage = { id: nostrMsg.id, from: nostrMsg.from, ciphertext: nostrMsg.ciphertext, timestamp: nostrMsg.timestamp, type: nostrMsg.type, fileName: nostrMsg.fileName, mine: false }
         updateContactLastSeen(contact.publicKey, identity.publicKey)
@@ -268,6 +273,7 @@ export default function ChatPage() {
   const handleBackToContacts = () => {
     nostrClient.disconnect()
     callManager.stopListening()
+    if (activeContactRef.current && identity) clearRatchet(identity.publicKey, activeContactRef.current.publicKey)
     setConnected(false); setNetworkStatus('offline')
     setActiveContact(null); activeContactRef.current = null; setSharedSecret(undefined); sharedSecretRef.current = undefined
     onMessageRef.current = null
@@ -280,8 +286,8 @@ export default function ChatPage() {
     if (!input.trim() || !sharedSecret || !activeContact || !identity) return
     setSendError('')
     const id = crypto.randomUUID()
-    const ciphertext = await encryptMessage(input.trim(), sharedSecret, id)
-    const msg: NostrMessage = { id, from: identity.publicKey.slice(0, 16), ciphertext, timestamp: Date.now(), type: 'text' }
+    const { ciphertext, ratchetPub } = await ratchetEncrypt(input.trim(), identity.publicKey, activeContact.publicKey, sharedSecret, id)
+    const msg: NostrMessage = { id, from: identity.publicKey.slice(0, 16), ciphertext, ratchetPub, timestamp: Date.now(), type: 'text' }
     const draft = input.trim(); setInput('')
     try {
       await nostrClient.send(msg)

@@ -21,6 +21,7 @@ export type NostrMessage = {
   timestamp: number
   type: 'text' | 'image' | 'file'
   fileName?: string
+  ratchetPub?: string
 }
 
 export type RelayStatus = {
