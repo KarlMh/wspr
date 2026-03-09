@@ -1,1 +1,8 @@
-{}
+{
+  "name": "wspr-root",
+  "private": true,
+  "scripts": {
+    "build": "cd web && npm run build",
+    "dev": "cd web && npm run dev"
+  }
+}
