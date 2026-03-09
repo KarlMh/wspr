@@ -10,6 +10,7 @@ import {
 } from '@/lib/identity'
 import {
   saveContact, loadContacts, deleteContact, updateContactLastSeen,
+  loadChannelMessages, saveChannelMessage,
   type Contact, type StoredMessage
 } from '@/lib/storage'
 import Link from 'next/link'
