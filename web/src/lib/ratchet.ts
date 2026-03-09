@@ -35,6 +35,9 @@ export function clearRatchet(myPubKey: string, theirPubKey: string): void {
 }
 
 // HKDF extract+expand
+function toArrayBuffer(u8: Uint8Array): ArrayBuffer {
+  return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer
+}
 async function hkdf(
   inputKey: Uint8Array,
   salt: Uint8Array,
@@ -42,9 +45,9 @@ async function hkdf(
   length = 32
 ): Promise<Uint8Array> {
   const enc = new TextEncoder()
-  const keyMaterial = await crypto.subtle.importKey('raw', inputKey.buffer.slice(inputKey.byteOffset, inputKey.byteOffset + inputKey.byteLength) as ArrayBuffer, 'HKDF', false, ['deriveKey', 'deriveBits'])
+  const keyMaterial = await crypto.subtle.importKey('raw', toArrayBuffer(inputKey), 'HKDF', false, ['deriveKey', 'deriveBits'])
   const bits = await crypto.subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt, info: enc.encode(info) },
+    { name: 'HKDF', hash: 'SHA-256', salt: toArrayBuffer(salt), info: enc.encode(info) },
     keyMaterial,
     length * 8
   )
