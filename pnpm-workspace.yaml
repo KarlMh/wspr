@@ -1,7 +1,8 @@
-ignoredBuiltDependencies:
-  - sharp
-  - unrs-resolver
-
 packages:
   - web
   - mobile
+
+ignoredBuiltDependencies:
+  - protobufjs
+  - sharp
+  - unrs-resolver
