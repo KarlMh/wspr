@@ -212,7 +212,7 @@ export default function ProofBundlePage() {
         <div className="flex w-full mb-8 gap-0" style={{ borderBottom: '1px solid var(--border)' }}>
           {(['create', 'verify'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              style={{ color: tab === t ? 'var(--text-1)' : 'var(--text-4)', borderBottom: tab === t ? '1px solid var(--text-1)' : '1px solid transparent', marginBottom: '-1px', background: 'none', border: 'none', borderBottom: tab === t ? '2px solid var(--text-2)' : '2px solid transparent' }}
+              style={{ color: tab === t ? 'var(--text-1)' : 'var(--text-4)', borderBottom: tab === t ? '2px solid var(--text-2)' : '2px solid transparent', marginBottom: '-1px', background: 'none', border: 'none' }}
               className="px-4 py-2 text-xs uppercase tracking-widest cursor-pointer">
               {t}
             </button>
