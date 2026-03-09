@@ -317,6 +317,14 @@ export default function ChatPage() {
     const a = document.createElement('a'); a.href = url; a.download = msg.fileName || 'file'; a.click()
   }
 
+  if (screen === 'unlock') return (
+    <IdentityGate
+      backHref="/app"
+      title="wspr / chat"
+      onIdentityReady={(id) => { setIdentity(id); setScreen('contacts') }}
+    />
+  )
+
   const connectedRelays = relayStatus.filter(r => r.connected).length
 
   return (
@@ -366,15 +374,6 @@ export default function ChatPage() {
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-
-          {/* UNLOCK */}
-          {screen === 'unlock' && (
-            <IdentityGate
-              backHref="/app"
-              title="wspr / chat"
-              headerless
-              onIdentityReady={(id) => { setIdentity(id); setScreen('contacts') }}
-            />
           )}
 
           {/* CONTACTS */}
