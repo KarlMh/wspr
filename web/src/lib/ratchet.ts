@@ -74,7 +74,7 @@ async function kdfRootKey(
 // ECDH between our private key and their public key
 async function dh(privateKey: CryptoKey, publicKeyRaw: Uint8Array): Promise<Uint8Array> {
   const pubKey = await crypto.subtle.importKey(
-    'raw', publicKeyRaw,
+    'raw', toArrayBuffer(publicKeyRaw),
     { name: 'ECDH', namedCurve: 'P-256' },
     false, []
   )
@@ -96,7 +96,7 @@ async function exportPub(key: CryptoKey): Promise<string> {
 async function importPub(b64: string): Promise<CryptoKey> {
   const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0))
   return crypto.subtle.importKey(
-    'raw', raw,
+    'raw', toArrayBuffer(raw),
     { name: 'ECDH', namedCurve: 'P-256' },
     true, []
   )
@@ -155,7 +155,7 @@ export async function ratchetEncrypt(
 
   // Encrypt with message key
   const iv = crypto.getRandomValues(new Uint8Array(12))
-  const cryptoKey = await crypto.subtle.importKey('raw', messageKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt'])
+  const cryptoKey = await crypto.subtle.importKey('raw', toArrayBuffer(messageKey), { name: 'AES-GCM', length: 256 }, false, ['encrypt'])
   const enc = new TextEncoder()
   const ciphertextBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, enc.encode(plaintext))
   const combined = new Uint8Array(iv.length + ciphertextBuf.byteLength)
@@ -216,7 +216,7 @@ export async function ratchetDecrypt(
     const combined = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0))
     const iv = combined.slice(0, 12)
     const ct = combined.slice(12)
-    const cryptoKey = await crypto.subtle.importKey('raw', messageKey, { name: 'AES-GCM', length: 256 }, false, ['decrypt'])
+    const cryptoKey = await crypto.subtle.importKey('raw', toArrayBuffer(messageKey), { name: 'AES-GCM', length: 256 }, false, ['decrypt'])
     const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, ct)
 
     setRatchet(myPubKey, theirPubKey, state)
