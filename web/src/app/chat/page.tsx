@@ -203,7 +203,10 @@ export default function ChatPage() {
       const secret = await deriveSharedSecret(privateKey, contact.publicKey)
       const safety = await generateSafetyNumber(identity.publicKey, contact.publicKey)
       setSharedSecret(secret); sharedSecretRef.current = secret; setSafetyNumber(safety)
-      const persisted = loadChannelMessages(identity.publicKey, contact.publicKey)
+      const persisted = loadChannelMessages(identity.publicKey, contact.publicKey).map(m => ({
+        ...m,
+        mine: m.mine // preserved from save time — sender set mine:true, receiver set mine:false
+      }))
       setMessages(persisted)
       onMessageRef.current = async (nostrMsg: NostrMessage) => {
         const currentSecret = sharedSecretRef.current; if (!currentSecret) return
@@ -326,7 +329,7 @@ export default function ChatPage() {
     <IdentityGate
       backHref="/app"
       title="wspr / chat"
-      onIdentityReady={(id) => { setIdentity(id); setScreen('contacts') }}
+      onIdentityReady={(id) => { setIdentity(id); setContacts(loadContacts(id.publicKey)); setScreen('contacts') }}
     />
   )
 
