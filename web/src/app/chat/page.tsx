@@ -339,50 +339,58 @@ export default function ChatPage() {
   return (
     <main className="flex flex-col t-text-1" style={{ background: 'var(--bg)', fontFamily: 'monospace', height: '100dvh', overflow: 'hidden' }}>
 
-      {/* Header */}
-      <div className="border-b px-3 py-2 flex items-center justify-between flex-shrink-0 gap-2 t-border" style={{ background: 'var(--bg)' }}>
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          {screen === 'chat' && (
-            <button onClick={handleBackToContacts} style={{ color: "var(--text-3)" }} className="text-base px-1 flex-shrink-0 hover:opacity-80">←</button>
-          )}
-          <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${networkStatus === 'online' ? 'bg-zinc-400' : networkStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-zinc-700'}`} />
-          <span style={{ color: "var(--text-3)" }} className="text-xs tracking-widest uppercase truncate">
-            {screen === 'chat' && activeContact ? activeContact.name : 'wspr'}
-          </span>
-          {screen === 'chat' && callState === 'connected' && (
-            <span style={{ color: "var(--text-2)" }} className="text-xs font-mono flex-shrink-0">
-              {Math.floor(callDuration/60).toString().padStart(2,'0')}:{(callDuration%60).toString().padStart(2,'0')}
-            </span>
-          )}
+      {/* Header — per-screen */}
+      {screen === 'contacts' && (
+        <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }} className="px-3 py-2 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <div style={{ width:6, height:6, borderRadius:'50%', background: networkStatus==='online' ? 'var(--text-3)' : networkStatus==='connecting' ? '#eab308' : 'var(--text-5)' }} />
+            <span style={{ color: 'var(--text-2)' }} className="text-xs tracking-widest uppercase">wspr / chat</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={toggleTheme} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">{theme==='dark'?'☀':'☾'}</button>
+            <button onClick={handleLock} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">LOCK</button>
+            <button onClick={() => setScreen('settings')} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">⚙</button>
+            <Link href="/app" style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80 hidden sm:block">← app</Link>
+          </div>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {screen === 'chat' && connected && (callState === 'idle' || callState === 'ended') && (
-            <button onClick={async () => {
-              if (!sharedSecret || !activeContact || !identity) return
-              setCallState('idle')
-              setShowCall(true)
-              await callManager.startCall(identity.publicKey, activeContact.publicKey, sharedSecret, false)
-            }} style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="px-2 py-1 transition-all text-xs hover:opacity-80">☎</button>
-          )}
-          {screen === 'chat' && (
-            <button onClick={() => setShowSidebar(v => !v)} style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="px-2 py-1 transition-all text-xs hover:opacity-80">≡</button>
-          )}
-          {screen === 'chat' && (
-            <button onClick={() => setShowSearch(v => !v)} style={{ color: 'var(--text-4)', border: '1px solid var(--border)' }} className="px-2 py-1 text-xs transition-all hover:opacity-80">⌕</button>
-          )}
-          {identity && screen !== 'settings' && screen !== 'chat' && (
-            <button onClick={() => setScreen('settings')} style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="px-2 py-1 transition-all text-xs hidden sm:block hover:opacity-80">SET</button>
-          )}
-          {screen === 'settings' && (
-            <button onClick={() => setScreen('contacts')} style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="text-xs px-2 py-1 hover:opacity-80">←</button>
-          )}
-          <button onClick={toggleTheme} style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="px-2 py-1 transition-all text-xs hover:opacity-80" title="Toggle theme">{theme === 'dark' ? '☀' : '☾'}</button>
-          {identity && (
-            <button onClick={handleLock} style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="px-2 py-1 transition-all text-xs hover:opacity-80">LOCK</button>
-          )}
-          <Link href="/app" style={{ color: "var(--text-4)", border: "1px solid var(--border)" }} className="text-xs px-2 py-1 hidden sm:block hover:opacity-80">←</Link>
+      )}
+      {screen === 'chat' && (
+        <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }} className="px-3 py-2 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <button onClick={handleBackToContacts} style={{ color:'var(--text-3)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80 flex-shrink-0">←</button>
+            <div style={{ width:6, height:6, borderRadius:'50%', flexShrink:0, background: networkStatus==='online' ? 'var(--text-3)' : networkStatus==='connecting' ? '#eab308' : 'var(--text-5)' }} />
+            <span style={{ color:'var(--text-1)' }} className="text-xs tracking-widest uppercase truncate font-medium">{activeContact?.name}</span>
+            {callState === 'connected' && (
+              <span style={{ color:'var(--text-3)' }} className="text-xs font-mono flex-shrink-0">
+                {Math.floor(callDuration/60).toString().padStart(2,'0')}:{(callDuration%60).toString().padStart(2,'0')}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button onClick={() => setShowSearch(v => !v)} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">⌕</button>
+            {connected && (callState === 'idle' || callState === 'ended') && (
+              <button onClick={async () => {
+                if (!sharedSecret || !activeContact || !identity) return
+                setShowCall(true)
+                await callManager.startCall(identity.publicKey, activeContact.publicKey, sharedSecret, false)
+              }} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">☎</button>
+            )}
+            <button onClick={toggleTheme} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">{theme==='dark'?'☀':'☾'}</button>
+          </div>
         </div>
-      </div>
+      )}
+      {screen === 'settings' && (
+        <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }} className="px-3 py-2 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setScreen('contacts')} style={{ color:'var(--text-3)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">←</button>
+            <span style={{ color:'var(--text-2)' }} className="text-xs tracking-widest uppercase">wspr / settings</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button onClick={toggleTheme} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">{theme==='dark'?'☀':'☾'}</button>
+            <Link href="/app" style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80 hidden sm:block">← app</Link>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
