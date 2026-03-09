@@ -12,6 +12,7 @@ const RELAYS = [
 ]
 
 const WSPR_KIND = 20001
+const TYPING_KIND = 20003
 
 export type NostrMessage = {
   id: string

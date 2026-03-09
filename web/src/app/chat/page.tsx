@@ -15,6 +15,7 @@ import {
 import Link from 'next/link'
 import IdentityGate from '@/components/IdentityGate'
 import { useTheme } from '@/lib/theme'
+import QRCode from '@/components/QRCode'
 import { CallManager, CallState } from '@/lib/call'
 import CallOverlay from '@/components/CallOverlay'
 
@@ -66,6 +67,14 @@ export default function ChatPage() {
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [hasNewMessage, setHasNewMessage] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
+  const [disappearMinutes, setDisappearMinutes] = useState<number>(0) // 0 = off
+  const [peerTyping, setPeerTyping] = useState(false)
+  const [showQR, setShowQR] = useState(false)
+  const peerTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const unsubTyping = useRef<(() => void) | null>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -358,6 +367,9 @@ export default function ChatPage() {
           {screen === 'chat' && (
             <button onClick={() => setShowSidebar(v => !v)} className="text-zinc-600 hover:text-zinc-300 border border-zinc-800 px-2 py-1 transition-all text-xs">≡</button>
           )}
+          {screen === 'chat' && (
+            <button onClick={() => setShowSearch(v => !v)} style={{ color: 'var(--text-4)', border: '1px solid var(--border)' }} className="px-2 py-1 text-xs transition-all hover:opacity-80">⌕</button>
+          )}
           {identity && screen !== 'settings' && screen !== 'chat' && (
             <button onClick={() => setScreen('settings')} className="text-zinc-600 hover:text-zinc-300 border border-zinc-800 px-2 py-1 transition-all text-xs hidden sm:block">SET</button>
           )}
@@ -383,10 +395,22 @@ export default function ChatPage() {
                 <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border)' }} className="p-3 mb-2">
                   <p style={{ color: 'var(--text-3)' }} className="text-xs break-all leading-relaxed">{identity.publicKey}</p>
                 </div>
-                <button onClick={() => navigator.clipboard.writeText(identity.publicKey)}
-                  style={{ color: 'var(--text-4)', border: '1px solid var(--border)' }} className="w-full text-xs py-2 transition-all hover:opacity-80">
-                  Copy public key
-                </button>
+                <div className="flex gap-1">
+                  <button onClick={() => navigator.clipboard.writeText(identity.publicKey)}
+                    style={{ color: 'var(--text-4)', border: '1px solid var(--border)' }} className="flex-1 text-xs py-2 transition-all hover:opacity-80">
+                    Copy
+                  </button>
+                  <button onClick={() => setShowQR(v => !v)}
+                    style={{ color: 'var(--text-4)', border: '1px solid var(--border)' }} className="flex-1 text-xs py-2 transition-all hover:opacity-80">
+                    {showQR ? 'Hide QR' : 'Show QR'}
+                  </button>
+                </div>
+                {showQR && (
+                  <div style={{ background: 'var(--bg-2)', border: '1px solid var(--border)' }} className="p-4 flex flex-col items-center gap-2">
+                    <QRCode value={identity.publicKey} size={160} />
+                    <p style={{ color: 'var(--text-5)' }} className="text-xs text-center">Scan to add as contact</p>
+                  </div>
+                )}
               </div>
               <div style={{ borderBottom: '1px solid var(--border)' }} className="p-4">
                 <p style={{ color: 'var(--text-4)' }} className="text-xs uppercase tracking-widest mb-3">Add Contact</p>
@@ -439,13 +463,39 @@ export default function ChatPage() {
                   <p className="text-yellow-600 text-xs animate-pulse">Connecting to Nostr network...</p>
                 </div>
               )}
+              {/* Search bar */}
+              {showSearch && (
+                <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }} className="px-3 py-2 flex items-center gap-2 flex-shrink-0">
+                  <input
+                    autoFocus
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Search messages..."
+                    style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', color: 'var(--text-1)' }}
+                    className="flex-1 text-xs p-2 focus:outline-none"
+                  />
+                  <button onClick={() => { setShowSearch(false); setSearchQuery('') }}
+                    style={{ color: 'var(--text-4)' }} className="text-xs px-2">✕</button>
+                </div>
+              )}
               <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 relative">
                 {messages.length === 0 && !connecting && (
                   <div className="flex-1 flex items-center justify-center">
                     <p className="text-zinc-800 text-xs">No messages yet.</p>
                   </div>
                 )}
-                {messages.map(msg => {
+                {messages
+                  .filter(msg => {
+                    // disappearing messages
+                    if (disappearMinutes > 0 && Date.now() - msg.timestamp > disappearMinutes * 60 * 1000) return false
+                    // search
+                    if (searchQuery.trim()) {
+                      const m = msg as typeof msg & { plaintext?: string }
+                      return m.plaintext?.toLowerCase().includes(searchQuery.toLowerCase())
+                    }
+                    return true
+                  })
+                  .map(msg => {
                   const m = msg as StoredMessage & { plaintext?: string; imageUrl?: string }
                   return (
                     <div key={msg.id} className={`flex ${msg.mine ? 'justify-end' : 'justify-start'}`}>
@@ -503,6 +553,12 @@ export default function ChatPage() {
                 </div>
               )}
 
+              {/* Typing indicator */}
+              {peerTyping && (
+                <div style={{ borderTop: '1px solid var(--border)', padding: '4px 12px' }}>
+                  <span style={{ color: 'var(--text-5)' }} className="text-xs">{activeContact?.name} is typing...</span>
+                </div>
+              )}
               <div className="border-t p-3 flex gap-2 flex-shrink-0 t-border">
                 <button onClick={() => fileInputRef.current?.click()}
                   className="border border-zinc-800 hover:border-zinc-600 text-zinc-600 hover:text-zinc-400 px-3 text-xs transition-all flex-shrink-0" title="Attach file">
@@ -522,6 +578,23 @@ export default function ChatPage() {
             </>
           )}
 
+          {/* DISAPPEARING MESSAGES setting — shown in chat sidebar */}
+          {screen === 'chat' && showSidebar && (
+            <div style={{ borderBottom: '1px solid var(--border)', padding: '12px' }}>
+              <p style={{ color: 'var(--text-4)' }} className="text-xs uppercase tracking-widest mb-2">Disappearing Messages</p>
+              <div className="flex gap-1 flex-wrap">
+                {[['Off', 0], ['5m', 5], ['1h', 60], ['1d', 1440]].map(([label, val]) => (
+                  <button key={val} onClick={() => setDisappearMinutes(val as number)}
+                    style={disappearMinutes === val
+                      ? { border: '1px solid var(--border-3)', color: 'var(--text-1)' }
+                      : { border: '1px solid var(--border)', color: 'var(--text-4)' }}
+                    className="text-xs px-3 py-1 transition-all">
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {/* SETTINGS */}
           {screen === 'settings' && identity && (
             <div className="flex-1 overflow-y-auto p-4">
