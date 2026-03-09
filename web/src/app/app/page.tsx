@@ -68,6 +68,42 @@ export default function AppHub() {
               ))}
             </div>
           </Link>
+          <Link href="/app/proof"
+            style={{ border: '1px solid var(--border)' }}
+            className="group p-6 transition-all hover:opacity-90 block"
+            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-3)')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
+            <div className="flex items-start justify-between mb-4">
+              <p style={{ color: 'var(--text-2)' }} className="text-sm uppercase tracking-widest">Proof Bundle</p>
+              <span style={{ color: 'var(--text-4)' }} className="text-xs">→</span>
+            </div>
+            <p style={{ color: 'var(--text-4)' }} className="text-xs leading-relaxed mb-4">
+              Cryptographically notarize any document. Hash, sign with your identity, anchor to Nostr. Generates a self-contained .proof file anyone can verify offline — no server, no account.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {['SHA-256', 'ECDSA signed', 'Nostr timestamp', 'Offline verify', 'No server'].map(tag => (
+                <span key={tag} style={{ color: 'var(--text-5)', border: '1px solid var(--border)' }} className="text-xs px-2 py-0.5">{tag}</span>
+              ))}
+            </div>
+          </Link>
+          <Link href="/app/witness"
+            style={{ border: '1px solid var(--border)' }}
+            className="group p-6 transition-all hover:opacity-90 block"
+            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-3)')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
+            <div className="flex items-start justify-between mb-4">
+              <p style={{ color: 'var(--text-2)' }} className="text-sm uppercase tracking-widest">Silent Witness</p>
+              <span style={{ color: 'var(--text-4)' }} className="text-xs">→</span>
+            </div>
+            <p style={{ color: 'var(--text-4)' }} className="text-xs leading-relaxed mb-4">
+              Capture photo, video, or audio evidence. Encrypted instantly on your device, hash anchored to Nostr permanently. Even if your device is wiped, the proof survives.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {['AES-256-GCM', 'Nostr anchor', 'Device-only', 'Tamper proof', 'Offline'].map(tag => (
+                <span key={tag} style={{ color: 'var(--text-5)', border: '1px solid var(--border)' }} className="text-xs px-2 py-0.5">{tag}</span>
+              ))}
+            </div>
+          </Link>
         </div>
 
         <p style={{ color: 'var(--text-5)' }} className="text-xs mt-12">Everything runs in your browser. Nothing is transmitted unencrypted.</p>
