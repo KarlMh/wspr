@@ -370,10 +370,9 @@ export default function ChatPage() {
           )}
           <Link href="/app" className="text-zinc-700 hover:text-zinc-400 text-xs border border-zinc-800 px-2 py-1 hidden sm:block">←</Link>
         </div>
-      </div>}
+      </div>
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           )}
 
           {/* CONTACTS */}
