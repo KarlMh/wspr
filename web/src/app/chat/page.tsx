@@ -86,15 +86,6 @@ export default function ChatPage() {
     setLog(prev => [`[${time}] ${msg}`, ...prev].slice(0, 20))
   }
 
-  // Nuke any leftover message history from localStorage on every load
-  useEffect(() => {
-    const keys: string[] = []
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i)
-      if (k?.startsWith('wspr_msgs_')) keys.push(k)
-    }
-    keys.forEach(k => localStorage.removeItem(k))
-  }, [])
 
   useEffect(() => {
     const session = getSessionIdentity()
@@ -211,13 +202,15 @@ export default function ChatPage() {
       const secret = await deriveSharedSecret(privateKey, contact.publicKey)
       const safety = await generateSafetyNumber(identity.publicKey, contact.publicKey)
       setSharedSecret(secret); sharedSecretRef.current = secret; setSafetyNumber(safety)
-      setMessages([])
+      const persisted = loadChannelMessages(identity.publicKey, contact.publicKey)
+      setMessages(persisted)
       onMessageRef.current = async (nostrMsg: NostrMessage) => {
         const currentSecret = sharedSecretRef.current; if (!currentSecret) return
         const plaintext = await decryptMessage(nostrMsg.ciphertext, currentSecret, nostrMsg.id)
         if (!plaintext) return
         const stored: StoredMessage = { id: nostrMsg.id, from: nostrMsg.from, ciphertext: nostrMsg.ciphertext, timestamp: nostrMsg.timestamp, type: nostrMsg.type, fileName: nostrMsg.fileName, mine: false }
         updateContactLastSeen(contact.publicKey, identity.publicKey)
+        saveChannelMessage(identity.publicKey, contact.publicKey, { ...stored, plaintext })
         setMessages(prev => { if (prev.find(m => m.id === nostrMsg.id)) return prev; return [...prev, { ...stored, plaintext }] })
       }
       await nostrClient.connect(
@@ -287,7 +280,9 @@ export default function ChatPage() {
     const draft = input.trim(); setInput('')
     try {
       await nostrClient.send(msg)
-      setMessages(prev => [...prev, { id: msg.id, from: msg.from, ciphertext: msg.ciphertext, timestamp: msg.timestamp, type: msg.type, mine: true, plaintext: draft }])
+      const sentMsg: StoredMessage = { id: msg.id, from: msg.from, ciphertext: msg.ciphertext, timestamp: msg.timestamp, type: msg.type, mine: true, plaintext: draft }
+      saveChannelMessage(identity.publicKey, activeContact.publicKey, sentMsg)
+      setMessages(prev => [...prev, sentMsg])
       inputRef.current?.focus()
     } catch {
       setInput(draft)
