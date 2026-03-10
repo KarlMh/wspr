@@ -295,7 +295,7 @@ export default function ProofBundlePage() {
         <div className="flex w-full mb-8" style={{ borderBottom: '1px solid var(--border)' }}>
           {(['create', 'verify', 'history'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              style={{ color: tab === t ? 'var(--text-1)' : 'var(--text-5)', borderBottom: tab === t ? '2px solid var(--text-2)' : '2px solid transparent', marginBottom: '-1px', background: 'none', border: 'none', borderBottom: tab === t ? '2px solid var(--text-2)' : '2px solid transparent', cursor: 'pointer' }}
+              style={{ color: tab === t ? 'var(--text-1)' : 'var(--text-5)', borderBottom: tab === t ? '2px solid var(--text-2)' : '2px solid transparent', marginBottom: '-1px', background: 'none', border: 'none', cursor: 'pointer' }}
               className="px-4 py-2 text-xs uppercase tracking-widest">
               {t}{t === 'history' && history.length > 0 ? ` (${history.length})` : ''}
             </button>
