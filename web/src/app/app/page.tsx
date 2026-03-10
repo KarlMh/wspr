@@ -86,6 +86,24 @@ export default function AppHub() {
               ))}
             </div>
           </Link>
+          <Link href="/app/chess"
+            style={{ border: '1px solid var(--border)' }}
+            className="group p-6 transition-all hover:opacity-90 block"
+            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border-3)')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}>
+            <div className="flex items-start justify-between mb-4">
+              <p style={{ color: 'var(--text-2)' }} className="text-sm uppercase tracking-widest">Chess</p>
+              <span style={{ color: 'var(--text-4)' }} className="text-xs">→</span>
+            </div>
+            <p style={{ color: 'var(--text-4)' }} className="text-xs leading-relaxed mb-4">
+              Challenge contacts to encrypted chess over Nostr. Moves are encrypted with your shared secret. No server, no account, no spectators.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {['E2E encrypted', 'Nostr P2P', 'Full rules', 'No server'].map(tag => (
+                <span key={tag} style={{ color: 'var(--text-5)', border: '1px solid var(--border)' }} className="text-xs px-2 py-0.5">{tag}</span>
+              ))}
+            </div>
+          </Link>
           <Link href="/app/witness"
             style={{ border: '1px solid var(--border)' }}
             className="group p-6 transition-all hover:opacity-90 block"
