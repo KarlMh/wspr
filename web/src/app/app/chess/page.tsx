@@ -31,6 +31,7 @@ export default function ChessPage() {
   const [incomingChallenge, setIncomingChallenge] = useState<{ from: Contact; gameId: string; secret: Uint8Array } | null>(null)
   const [drawOffer, setDrawOffer] = useState(false)
   const [flipped, setFlipped] = useState(false)
+  const [connecting, setConnecting] = useState(true)
 
   const chessNostrs = useRef<Map<string, ChessNostr>>(new Map())
   const activeChessNostr = useRef<ChessNostr | null>(null)
@@ -53,8 +54,10 @@ export default function ChessPage() {
           handleMsgRef.current(msg, contact, secret)
         })
         chessNostrs.current.set(contact.publicKey, instance)
-      } catch {}
+      } catch (e) { console.error('Chess connect failed:', e) }
     })
+    // All connections initiated
+    setTimeout(() => setConnecting(false), 1500)
     return () => {
       chessNostrs.current.forEach(i => i.disconnect())
       chessNostrs.current.clear()
@@ -121,10 +124,24 @@ export default function ChessPage() {
     setMyColor(color); myColorRef.current = color
     setScreen('waiting')
     addLog(`Challenging ${contact.name}...`)
-    const instance = chessNostrs.current.get(contact.publicKey)
-    activeChessNostr.current = instance || null
+    let instance = chessNostrs.current.get(contact.publicKey)
+    // If not connected yet, create a fresh connection
+    if (!instance) {
+      const privKey = await importPrivateKey(identity!.privateKeyRaw)
+      const secret = await deriveSharedSecret(privKey, contact.publicKey)
+      sharedSecretRef.current = secret
+      instance = new ChessNostr()
+      await instance.connect(identity!.publicKey, contact.publicKey, secret, (msg) => {
+        handleMsgRef.current(msg, contact, secret)
+      })
+      chessNostrs.current.set(contact.publicKey, instance)
+    }
+    activeChessNostr.current = instance
+    // Small delay to ensure subscription is active on relays
+    await new Promise(r => setTimeout(r, 800))
     const msg: ChessMessage = { type: 'challenge', gameId: id, color }
-    if (instance) await instance.send(msg, sharedSecretRef.current!)
+    await instance.send(msg, sharedSecretRef.current!)
+    addLog('Challenge sent!')
   }
 
   const handleAccept = async () => {
@@ -331,7 +348,10 @@ export default function ChessPage() {
             <p style={{ color: 'var(--text-4)' }} className="text-xs leading-relaxed">
               Challenge a contact to encrypted chess over Nostr. Moves are encrypted with your shared secret — nobody else can see the game.
             </p>
-            {contacts.length === 0 && (
+            {connecting && (
+              <p style={{ color: 'var(--text-5)' }} className="text-xs">⟳ Connecting to relays...</p>
+            )}
+            {contacts.length === 0 && !connecting && (
               <p style={{ color: 'var(--text-5)' }} className="text-xs text-center mt-8">No contacts yet. Add contacts in chat first.</p>
             )}
             {contacts.map(contact => (

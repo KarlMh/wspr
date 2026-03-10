@@ -23,31 +23,51 @@ function getChessTag(myPubKey: string, theirPubKey: string): string {
 export class ChessNostr {
   private pool: SimplePool | null = null
   private privKey: Uint8Array | null = null
+  private pubKey: string = ''
   private channelTag = ''
   private seen = new Set<string>()
   private sub: { close: () => void } | null = null
   private onMsgCb: ((msg: ChessMessage) => void) | null = null
+  private sharedSecret: Uint8Array | null = null
 
-  async connect(myPubKey: string, theirPubKey: string, sharedSecret: Uint8Array, onMessage: (msg: ChessMessage) => void) {
+  async connect(
+    myPubKey: string,
+    theirPubKey: string,
+    sharedSecret: Uint8Array,
+    onMessage: (msg: ChessMessage) => void
+  ) {
     this.channelTag = getChessTag(myPubKey, theirPubKey)
     this.onMsgCb = onMessage
+    this.sharedSecret = sharedSecret
     this.privKey = generateSecretKey()
+    this.pubKey = getPublicKey(this.privKey)
     this.pool = new SimplePool()
-    const filter = { kinds: [CHESS_KIND], since: Math.floor(Date.now() / 1000) - 60 }
-    ;(filter as Record<string, unknown>)['#t'] = [this.channelTag]
-    this.sub = this.pool.subscribeMany(RELAYS, filter as unknown as Filter, {
-      onevent: async (event) => {
-        if (this.seen.has(event.id)) return
-        this.seen.add(event.id)
-        if (event.pubkey === getPublicKey(this.privKey!)) return
-        try {
-          const plain = await decryptMessage(event.content, sharedSecret, event.id)
-          if (!plain) return
-          const msg: ChessMessage = JSON.parse(plain)
-          if (this.onMsgCb) this.onMsgCb(msg)
-        } catch {}
+
+    // Look back 10 minutes to catch challenges sent before we connected
+    const since = Math.floor(Date.now() / 1000) - 600
+    const filter: Record<string, unknown> = {
+      kinds: [CHESS_KIND],
+      since,
+      '#t': [this.channelTag]
+    }
+
+    this.sub = this.pool.subscribeMany(
+      RELAYS,
+      [filter as unknown as Filter],
+      {
+        onevent: async (event) => {
+          if (this.seen.has(event.id)) return
+          this.seen.add(event.id)
+          if (event.pubkey === this.pubKey) return
+          try {
+            const plain = await decryptMessage(event.content, sharedSecret, event.id)
+            if (!plain) return
+            const msg: ChessMessage = JSON.parse(plain)
+            if (this.onMsgCb) this.onMsgCb(msg)
+          } catch {}
+        }
       }
-    })
+    )
   }
 
   async send(msg: ChessMessage, sharedSecret: Uint8Array) {
@@ -61,7 +81,13 @@ export class ChessNostr {
       tags: [['t', this.channelTag]],
       content: ciphertext,
     }, this.privKey)
-    try { await Promise.any(this.pool.publish(RELAYS, event)) } catch {}
+    try {
+      await Promise.any(this.pool.publish(RELAYS, event))
+    } catch {
+      // retry once
+      await new Promise(r => setTimeout(r, 1000))
+      try { await Promise.any(this.pool.publish(RELAYS, event)) } catch {}
+    }
   }
 
   disconnect() {
