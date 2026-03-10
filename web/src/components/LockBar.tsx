@@ -1,25 +1,28 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { getSessionIdentity, clearSessionIdentity } from '@/lib/identity'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 export default function LockBar() {
   const [identity, setIdentity] = useState<{ publicKey: string } | null>(null)
-  const pathname = usePathname()
   const router = useRouter()
 
   useEffect(() => {
-    const id = getSessionIdentity()
-    setIdentity(id)
-  }, [pathname]) // re-check on every route change
+    // Check immediately
+    setIdentity(getSessionIdentity())
+
+    // Poll every 500ms so it appears as soon as login happens anywhere
+    const interval = setInterval(() => {
+      setIdentity(getSessionIdentity())
+    }, 500)
+
+    return () => clearInterval(interval)
+  }, [])
 
   if (!identity) return null
-  // Don't show on landing page
-  if (pathname === '/') return null
 
   const handleLock = () => {
     clearSessionIdentity()
-    // Clear message history on lock — contacts are kept
     const keys: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i)
@@ -48,7 +51,7 @@ export default function LockBar() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span style={{ color: 'var(--text-5)', fontSize: '10px' }}>●</span>
         <span style={{ color: 'var(--text-5)', fontSize: '10px', letterSpacing: '0.05em' }}>
-          {identity.publicKey.slice(0, 20)}...
+          {identity.publicKey.slice(0, 24)}...wspr
         </span>
       </div>
       <button
