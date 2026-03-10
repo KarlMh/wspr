@@ -90,6 +90,7 @@ export default function ChatPage() {
 
 
   useEffect(() => {
+    // Must be client-side — sessionStorage not available during SSR
     const session = getSessionIdentity()
     if (session) {
       setIdentity(session)
@@ -97,6 +98,22 @@ export default function ChatPage() {
       setScreen('contacts')
     }
   }, [])
+
+  // Also restore on visibility change (tab switch back)
+  useEffect(() => {
+    const onFocus = () => {
+      if (!identity) {
+        const session = getSessionIdentity()
+        if (session) {
+          setIdentity(session)
+          setContacts(loadContacts(session.publicKey))
+          setScreen('contacts')
+        }
+      }
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [identity])
 
   useEffect(() => {
     if (isAtBottom) {
@@ -355,7 +372,7 @@ export default function ChatPage() {
           <div className="flex items-center gap-1">
             <button onClick={toggleTheme} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">{theme==='dark'?'☀':'☾'}</button>
             <button onClick={() => setScreen('settings')} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">⚙</button>
-            <Link href="/app" style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">← back</Link>
+            <Link href="/app" style={{ color: 'var(--text-4)' }} className="text-xs uppercase tracking-widest hover:opacity-80">← back</Link>
           </div>
         </div>
       )}

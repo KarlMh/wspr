@@ -19,11 +19,11 @@ export default function LockBar() {
 
   const handleLock = () => {
     clearSessionIdentity()
-    // Also clear wspr_msgs_ and contacts from localStorage on lock
+    // Clear message history on lock — contacts are kept
     const keys: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i)
-      if (k?.startsWith('wspr_msgs_') || k?.startsWith('wspr_contacts_')) keys.push(k!)
+      if (k?.startsWith('wspr_msgs_')) keys.push(k!)
     }
     keys.forEach(k => localStorage.removeItem(k))
     setIdentity(null)
