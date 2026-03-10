@@ -130,7 +130,10 @@ export default function SilentWitnessPage() {
   const [cameraActive, setCameraActive] = useState(false)
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
   const [recording, setRecording] = useState(false)
+  const [audioRecording, setAudioRecording] = useState(false)
+  const [audioSeconds, setAudioSeconds] = useState(0)
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+  const audioTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
@@ -224,6 +227,35 @@ export default function SilentWitnessPage() {
     mediaRecorder?.stop(); setRecording(false)
   }
 
+  const startAudioRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mr = new MediaRecorder(stream)
+      chunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        setAudioRecording(false)
+        if (audioTimerRef.current) clearInterval(audioTimerRef.current)
+        setAudioSeconds(0)
+        const file = new File([blob], `witness-audio-${Date.now()}.webm`, { type: 'audio/webm' })
+        await processFile(file)
+      }
+      mr.start()
+      setMediaRecorder(mr)
+      setAudioRecording(true)
+      setAudioSeconds(0)
+      audioTimerRef.current = setInterval(() => setAudioSeconds(s => s + 1), 1000)
+      addLog('Recording audio...')
+    } catch { addLog('Microphone access denied.') }
+  }
+
+  const stopAudioRecording = () => {
+    mediaRecorder?.stop()
+    if (audioTimerRef.current) clearInterval(audioTimerRef.current)
+  }
+
   const processFile = async (f: File) => {
     if (!identity) return
     setStatus('encrypting')
@@ -306,7 +338,7 @@ export default function SilentWitnessPage() {
           </div>
         )}
         {/* Capture buttons */}
-        <div className="grid w-full gap-2" style={{ gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr' }}>
+        <div className="grid w-full gap-2" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <button onClick={() => startCamera('photo')}
             style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer' }}
             className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
@@ -322,10 +354,23 @@ export default function SilentWitnessPage() {
             className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
             ↑ Photo / File
           </button>
+          {audioRecording ? (
+            <button onClick={stopAudioRecording}
+              style={{ border: '1px solid #ef4444', color: '#ef4444', background: 'none', cursor: 'pointer' }}
+              className="py-5 text-xs uppercase tracking-widest">
+              ■ {String(Math.floor(audioSeconds/60)).padStart(2,'0')}:{String(audioSeconds%60).padStart(2,'0')}
+            </button>
+          ) : (
+            <button onClick={startAudioRecording}
+              style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer' }}
+              className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
+              ♪ Record
+            </button>
+          )}
           <button onClick={() => audioInputRef.current?.click()}
             style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer' }}
             className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
-            ♪ Audio
+            ↑ Audio file
           </button>
         </div>
         <input ref={photoInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx" className="hidden" onChange={handleCapture} />
