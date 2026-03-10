@@ -354,9 +354,8 @@ export default function ChatPage() {
           </div>
           <div className="flex items-center gap-1">
             <button onClick={toggleTheme} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">{theme==='dark'?'☀':'☾'}</button>
-            <button onClick={handleLock} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">LOCK</button>
             <button onClick={() => setScreen('settings')} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">⚙</button>
-            <Link href="/app" style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80 hidden sm:block">← app</Link>
+            <Link href="/app" style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">← back</Link>
           </div>
         </div>
       )}
@@ -393,7 +392,7 @@ export default function ChatPage() {
           </div>
           <div className="flex items-center gap-1">
             <button onClick={toggleTheme} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">{theme==='dark'?'☀':'☾'}</button>
-            <Link href="/app" style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80 hidden sm:block">← app</Link>
+
           </div>
         </div>
       )}
