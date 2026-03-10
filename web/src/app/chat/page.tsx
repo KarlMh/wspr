@@ -369,9 +369,9 @@ export default function ChatPage() {
             <div style={{ width:6, height:6, borderRadius:'50%', background: networkStatus==='online' ? 'var(--text-3)' : networkStatus==='connecting' ? '#eab308' : 'var(--text-5)' }} />
             <span style={{ color: 'var(--text-2)' }} className="text-xs tracking-widest uppercase">wspr / chat</span>
           </div>
-          <div className="flex items-center gap-1">
-            <button onClick={toggleTheme} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">{theme==='dark'?'☀':'☾'}</button>
-            <button onClick={() => setScreen('settings')} style={{ color:'var(--text-4)', border:'1px solid var(--border)' }} className="px-2 py-1 text-xs hover:opacity-80">⚙</button>
+          <div className="flex items-center gap-4">
+            <button onClick={toggleTheme} style={{ color:'var(--text-4)', background:'none', border:'1px solid var(--border-2)', padding:'2px 8px', cursor:'pointer', fontSize:'12px' }}>{theme==='dark'?'☀':'☾'}</button>
+            <button onClick={() => setScreen('settings')} style={{ color:'var(--text-4)', background:'none', border:'none', cursor:'pointer', fontSize:'12px' }} className="text-xs uppercase tracking-widest hover:opacity-80">⚙</button>
             <Link href="/app" style={{ color: 'var(--text-4)' }} className="text-xs uppercase tracking-widest hover:opacity-80">← back</Link>
           </div>
         </div>

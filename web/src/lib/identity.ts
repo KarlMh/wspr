@@ -96,18 +96,26 @@ export function readFileAsBytes(file: File): Promise<Uint8Array> {
   })
 }
 
-// Session cache — keep decrypted identity in memory for the session only
-// Cleared on page close, never written to localStorage
+// Session cache — persisted in sessionStorage so refresh keeps you logged in
+// sessionStorage dies on tab close, never touches localStorage
+const SESSION_KEY = 'wspr_session'
 let sessionIdentity: Identity | null = null
 
 export function setSessionIdentity(identity: Identity): void {
   sessionIdentity = identity
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(identity)) } catch {}
 }
 
 export function getSessionIdentity(): Identity | null {
-  return sessionIdentity
+  if (sessionIdentity) return sessionIdentity
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY)
+    if (raw) { sessionIdentity = JSON.parse(raw); return sessionIdentity }
+  } catch {}
+  return null
 }
 
 export function clearSessionIdentity(): void {
   sessionIdentity = null
+  try { sessionStorage.removeItem(SESSION_KEY) } catch {}
 }
