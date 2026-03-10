@@ -227,18 +227,18 @@ export default function SilentWitnessPage() {
   const processFile = async (f: File) => {
     if (!identity) return
     setStatus('encrypting')
-    addLog(\`Securing \${f.name} (\${(f.size/1024).toFixed(1)} KB)...\`)
+    addLog(`Securing ${f.name} (${(f.size/1024).toFixed(1)} KB)...`)
     try {
       const buf = await f.arrayBuffer()
       const bytes = new Uint8Array(buf)
       const hash = await sha256Hex(buf)
-      addLog(\`SHA-256: \${hash.slice(0,16)}... encrypting...\`)
+      addLog(`SHA-256: ${hash.slice(0,16)}... encrypting...`)
       const { encryptedData, encryptedKey } = await encryptFile(bytes, identity.publicKey)
       const type: WitnessRecord['type'] = f.type.startsWith('video') ? 'video' : f.type.startsWith('audio') ? 'audio' : 'photo'
       setStatus('publishing')
       addLog('Publishing hash to Nostr...')
       const eventId = await publishHashToNostr(hash, type, identity.privateKeyRaw, identity.publicKey)
-      if (eventId) addLog(\`Hash anchored. Event: \${eventId.slice(0,16)}...\`)
+      if (eventId) addLog(`Hash anchored. Event: ${eventId.slice(0,16)}...`)
       else addLog('Relay offline — hash stored locally only.')
       const record: WitnessRecord = {
         id: crypto.randomUUID(), type, fileName: f.name, sha256: hash,
@@ -251,7 +251,7 @@ export default function SilentWitnessPage() {
       addLog('Evidence secured.')
       setTimeout(() => setStatus('idle'), 2000)
     } catch (err) {
-      addLog(\`ERROR: \${err instanceof Error ? err.message : 'Failed'}\`)
+      addLog(`ERROR: ${err instanceof Error ? err.message : 'Failed'}`)
       setStatus('error')
       setTimeout(() => setStatus('idle'), 2000)
     }
