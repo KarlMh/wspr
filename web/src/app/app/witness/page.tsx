@@ -338,42 +338,32 @@ export default function SilentWitnessPage() {
           </div>
         )}
         {/* Capture buttons */}
-        <div className="grid w-full gap-2" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+        <div className="flex w-full gap-2">
           <button onClick={() => startCamera('photo')}
-            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer' }}
+            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer', flex: 1 }}
             className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
             ◉ Camera
           </button>
-          <button onClick={() => startCamera('video')}
-            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer' }}
-            className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
-            ▶ Record
-          </button>
-          <button onClick={() => photoInputRef.current?.click()}
-            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer' }}
-            className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
-            ↑ Photo / File
-          </button>
           {audioRecording ? (
             <button onClick={stopAudioRecording}
-              style={{ border: '1px solid #ef4444', color: '#ef4444', background: 'none', cursor: 'pointer' }}
+              style={{ border: '1px solid #ef4444', color: '#ef4444', background: 'none', cursor: 'pointer', flex: 1 }}
               className="py-5 text-xs uppercase tracking-widest">
               ■ {String(Math.floor(audioSeconds/60)).padStart(2,'0')}:{String(audioSeconds%60).padStart(2,'0')}
             </button>
           ) : (
             <button onClick={startAudioRecording}
-              style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer' }}
+              style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer', flex: 1 }}
               className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
               ♪ Record
             </button>
           )}
-          <button onClick={() => audioInputRef.current?.click()}
-            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer' }}
+          <button onClick={() => fileRef.current?.click()}
+            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer', flex: 1 }}
             className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
-            ↑ Audio file
+            ↑ File
           </button>
         </div>
-        <input ref={photoInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx" className="hidden" onChange={handleCapture} />
+        <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handleCapture} />
         <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleCapture} />
         <input ref={audioInputRef} type="file" accept="audio/*" className="hidden" onChange={handleCapture} />
         <input ref={fileRef} type="file" className="hidden" onChange={handleCapture} />
