@@ -111,8 +111,6 @@ export default function ChessPage() {
     const secret = await deriveSharedSecret(privKey, contact.publicKey)
     setSharedSecret(secret); sharedSecretRef.current = secret
     setOpponent(contact)
-    await activeChessNostr.current?.disconnect()
-    await chessNostr.current.connect(identity.publicKey, contact.publicKey, secret, handleMsg)
   }
 
   const handleChallenge = async (contact: Contact) => {
