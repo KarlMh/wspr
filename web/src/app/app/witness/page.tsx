@@ -127,8 +127,16 @@ export default function SilentWitnessPage() {
   const [status, setStatus] = useState<'idle' | 'encrypting' | 'publishing' | 'done' | 'error'>('idle')
   const [log, setLog] = useState<string[]>([])
   const [decrypting, setDecrypting] = useState<string | null>(null)
+  const [cameraActive, setCameraActive] = useState(false)
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
+  const [recording, setRecording] = useState(false)
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const mediaRef = useRef<HTMLInputElement>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
+  const audioInputRef = useRef<HTMLInputElement>(null)
+  const videoPreviewRef = useRef<HTMLVideoElement>(null)
+  const chunksRef = useRef<Blob[]>([])
 
   useEffect(() => { setRecords(loadRecords()) }, [])
 
@@ -143,19 +151,94 @@ export default function SilentWitnessPage() {
 
   const handleCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f || !identity) return
+    await processFile(f)
+    e.target.value = ''
+  }
+
+  const guessMime = (record: WitnessRecord) => {
+    const ext = record.fileName.split('.').pop()?.toLowerCase()
+    if (record.type === 'video') return ext === 'webm' ? 'video/webm' : 'video/mp4'
+    if (record.type === 'audio') return ext === 'mp4' ? 'audio/mp4' : 'audio/webm'
+    if (ext === 'png') return 'image/png'
+    if (ext === 'gif') return 'image/gif'
+    if (ext === 'webp') return 'image/webp'
+    return 'image/jpeg'
+  }
+  const handleDecrypt = async (record: WitnessRecord) => {
+    if (!identity) return
+    setDecrypting(record.id)
+    try {
+      const bytes = await decryptFile(record.encryptedData, record.encryptedKey, identity.privateKeyRaw)
+      const mime = guessMime(record)
+      const blob = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: mime })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = record.fileName; a.click()
+      URL.revokeObjectURL(url)
+    } catch { addLog('Decrypt failed.') }
+    setDecrypting(null)
+  }
+
+  const startCamera = async (mode: 'photo' | 'video') => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: mode === 'video' })
+      setCameraStream(stream); setCameraActive(true)
+      setTimeout(() => { if (videoPreviewRef.current) { videoPreviewRef.current.srcObject = stream; videoPreviewRef.current.play() } }, 50)
+    } catch { addLog('Camera access denied.') }
+  }
+
+  const stopCamera = () => {
+    cameraStream?.getTracks().forEach(t => t.stop())
+    setCameraStream(null); setCameraActive(false); setRecording(false)
+  }
+
+  const capturePhoto = async () => {
+    if (!videoPreviewRef.current) return
+    const canvas = document.createElement('canvas')
+    canvas.width = videoPreviewRef.current.videoWidth
+    canvas.height = videoPreviewRef.current.videoHeight
+    canvas.getContext('2d')!.drawImage(videoPreviewRef.current, 0, 0)
+    canvas.toBlob(async (blob) => {
+      if (!blob) return
+      stopCamera()
+      const file = new File([blob], `witness-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      await processFile(file)
+    }, 'image/jpeg', 0.92)
+  }
+
+  const startVideoRecording = () => {
+    if (!cameraStream) return
+    const mr = new MediaRecorder(cameraStream, { mimeType: 'video/webm;codecs=vp8' })
+    chunksRef.current = []
+    mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+    mr.onstop = async () => {
+      const blob = new Blob(chunksRef.current, { type: 'video/webm' })
+      stopCamera()
+      const file = new File([blob], `witness-${Date.now()}.webm`, { type: 'video/webm' })
+      await processFile(file)
+    }
+    mr.start(); setMediaRecorder(mr); setRecording(true)
+    addLog('Recording...')
+  }
+
+  const stopVideoRecording = () => {
+    mediaRecorder?.stop(); setRecording(false)
+  }
+
+  const processFile = async (f: File) => {
+    if (!identity) return
     setStatus('encrypting')
-    addLog(`Capturing ${f.name}...`)
+    addLog(\`Securing \${f.name} (\${(f.size/1024).toFixed(1)} KB)...\`)
     try {
       const buf = await f.arrayBuffer()
       const bytes = new Uint8Array(buf)
       const hash = await sha256Hex(buf)
-      addLog(`SHA-256: ${hash.slice(0,16)}... encrypting...`)
+      addLog(\`SHA-256: \${hash.slice(0,16)}... encrypting...\`)
       const { encryptedData, encryptedKey } = await encryptFile(bytes, identity.publicKey)
       const type: WitnessRecord['type'] = f.type.startsWith('video') ? 'video' : f.type.startsWith('audio') ? 'audio' : 'photo'
       setStatus('publishing')
       addLog('Publishing hash to Nostr...')
       const eventId = await publishHashToNostr(hash, type, identity.privateKeyRaw, identity.publicKey)
-      if (eventId) addLog(`Hash anchored. Event: ${eventId.slice(0,16)}...`)
+      if (eventId) addLog(\`Hash anchored. Event: \${eventId.slice(0,16)}...\`)
       else addLog('Relay offline — hash stored locally only.')
       const record: WitnessRecord = {
         id: crypto.randomUUID(), type, fileName: f.name, sha256: hash,
@@ -165,28 +248,13 @@ export default function SilentWitnessPage() {
       saveRecord(record)
       setRecords(loadRecords())
       setStatus('done')
-      addLog('Evidence secured. File encrypted on device.')
+      addLog('Evidence secured.')
       setTimeout(() => setStatus('idle'), 2000)
     } catch (err) {
-      addLog(`ERROR: ${err instanceof Error ? err.message : 'Failed'}`)
+      addLog(\`ERROR: \${err instanceof Error ? err.message : 'Failed'}\`)
       setStatus('error')
       setTimeout(() => setStatus('idle'), 2000)
     }
-    e.target.value = ''
-  }
-
-  const handleDecrypt = async (record: WitnessRecord) => {
-    if (!identity) return
-    setDecrypting(record.id)
-    try {
-      const bytes = await decryptFile(record.encryptedData, record.encryptedKey, identity.privateKeyRaw)
-      const mime = record.type === 'video' ? 'video/mp4' : record.type === 'audio' ? 'audio/webm' : 'image/jpeg'
-      const blob = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], { type: mime })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a'); a.href = url; a.download = record.fileName; a.click()
-      URL.revokeObjectURL(url)
-    } catch { addLog('Decrypt failed.') }
-    setDecrypting(null)
   }
 
   const typeIcon = (t: WitnessRecord['type']) => t === 'video' ? '▶' : t === 'audio' ? '♪' : '◉'
@@ -208,30 +276,61 @@ export default function SilentWitnessPage() {
           Capture evidence. The file is encrypted instantly on your device and its hash is anchored to Nostr. Even if your device is seized and wiped, the hash proves the file existed at this exact moment.
         </p>
 
+        {/* Camera overlay */}
+        {cameraActive && (
+          <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 50, display: 'flex', flexDirection: 'column' }}>
+            <video ref={videoPreviewRef} autoPlay playsInline muted style={{ flex: 1, width: '100%', objectFit: 'cover' }} />
+            <div style={{ background: '#000', padding: '16px 24px', display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              {!recording ? (
+                <>
+                  <button onClick={capturePhoto}
+                    style={{ background: '#fff', color: '#000', border: 'none', cursor: 'pointer', borderRadius: '50%', width: 64, height: 64, fontSize: '24px' }}>
+                    ◉
+                  </button>
+                  <button onClick={startVideoRecording}
+                    style={{ background: '#ef4444', color: '#fff', border: 'none', cursor: 'pointer', borderRadius: '50%', width: 64, height: 64, fontSize: '14px' }}>
+                    ▶ REC
+                  </button>
+                  <button onClick={stopCamera}
+                    style={{ background: 'none', color: '#fff', border: '1px solid #555', cursor: 'pointer', borderRadius: '50%', width: 64, height: 64, fontSize: '20px' }}>
+                    ✕
+                  </button>
+                </>
+              ) : (
+                <button onClick={stopVideoRecording}
+                  style={{ background: '#ef4444', color: '#fff', border: 'none', cursor: 'pointer', borderRadius: '50%', width: 64, height: 64, fontSize: '14px', animation: 'pulse 1s infinite' }}>
+                  ■ STOP
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {/* Capture buttons */}
-        <div className="flex gap-3 w-full">
-          <button onClick={() => { if(mediaRef.current) { mediaRef.current.accept='image/*'; mediaRef.current.capture='environment'; mediaRef.current.click() } }}
-            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer', flex: 1 }}
-            className="py-4 text-xs uppercase tracking-widest hover:opacity-80">
-            ◉ Photo
+        <div className="grid w-full gap-2" style={{ gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr' }}>
+          <button onClick={() => startCamera('photo')}
+            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer' }}
+            className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
+            ◉ Camera
           </button>
-          <button onClick={() => { if(mediaRef.current) { mediaRef.current.accept='video/*'; mediaRef.current.capture='environment'; mediaRef.current.click() } }}
-            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer', flex: 1 }}
-            className="py-4 text-xs uppercase tracking-widest hover:opacity-80">
-            ▶ Video
+          <button onClick={() => startCamera('video')}
+            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer' }}
+            className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
+            ▶ Record
           </button>
-          <button onClick={() => { if(mediaRef.current) { mediaRef.current.accept='audio/*'; mediaRef.current.capture='microphone'; mediaRef.current.click() } }}
-            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer', flex: 1 }}
-            className="py-4 text-xs uppercase tracking-widest hover:opacity-80">
+          <button onClick={() => photoInputRef.current?.click()}
+            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer' }}
+            className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
+            ↑ Photo / File
+          </button>
+          <button onClick={() => audioInputRef.current?.click()}
+            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer' }}
+            className="py-5 text-xs uppercase tracking-widest hover:opacity-80">
             ♪ Audio
           </button>
-          <button onClick={() => fileRef.current?.click()}
-            style={{ border: '1px solid var(--border)', color: 'var(--text-2)', background: 'none', cursor: 'pointer', flex: 1 }}
-            className="py-4 text-xs uppercase tracking-widest hover:opacity-80">
-            ↑ File
-          </button>
         </div>
-        <input ref={mediaRef} type="file" className="hidden" onChange={handleCapture} />
+        <input ref={photoInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx" className="hidden" onChange={handleCapture} />
+        <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleCapture} />
+        <input ref={audioInputRef} type="file" accept="audio/*" capture="microphone" className="hidden" onChange={handleCapture} />
         <input ref={fileRef} type="file" className="hidden" onChange={handleCapture} />
 
         {/* Status */}
