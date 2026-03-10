@@ -189,7 +189,7 @@ export default function ProofBundlePage() {
     setStatus('signing'); setBundle(null)
     addLog('Signing with your wspr identity...')
     try {
-      const sigPayload = `wspr-proof-v2:${hash}:${Date.now()}`
+      const sigPayload = `wspr-proof-v2:${hash}`
       const sig = await signData(sigPayload, identity.privateKeyRaw)
       const now = Date.now()
       const draft: ProofBundle = {
@@ -265,7 +265,7 @@ export default function ProofBundlePage() {
       const contentMatch = hash === proof.sha256
       // v2 sig payload
       const sigPayload = proof.version === '2'
-        ? `wspr-proof-v2:${proof.sha256}:${proof.timestamp}`
+        ? `wspr-proof-v2:${proof.sha256}`
         : proof.sha256 // v1 fallback
       const signatureValid = await verifySignature(sigPayload, proof.signature, proof.signedBy)
       setVerifyResult({ contentMatch, signatureValid, bundle: proof })

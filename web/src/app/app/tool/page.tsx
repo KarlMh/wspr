@@ -7,6 +7,7 @@ import { deriveSharedSecret, importPrivateKey, generateSafetyNumber, generateKey
 import { encryptIdentity, downloadIdentityFile } from '@/lib/identity'
 import { decryptIdentity, readFileAsBytes, setSessionIdentity, getSessionIdentity, type Identity } from '@/lib/identity'
 import { useTheme } from '@/lib/theme'
+import { loadContacts, type Contact } from '@/lib/storage'
 import IdentityGate from '@/components/IdentityGate'
 import Link from 'next/link'
 
@@ -40,6 +41,8 @@ export default function ToolPage() {
   const [createError, setCreateError] = useState('')
 
   const [theirPublicKey, setTheirPublicKey] = useState('')
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [showContactPicker, setShowContactPicker] = useState(false)
   const [sharedSecret, setSharedSecret] = useState<Uint8Array | undefined>()
   const [safetyNumber, setSafetyNumber] = useState('')
   const [safetyVerified, setSafetyVerified] = useState(false)
@@ -71,7 +74,7 @@ export default function ToolPage() {
 
   useEffect(() => {
     const session = getSessionIdentity()
-    if (session) { setIdentity(session); setStep('exchange') }
+    if (session) { setIdentity(session); setContacts(loadContacts(session.publicKey)); setStep('exchange') }
   }, [])
 
   const addLog = (msg: string) => {
@@ -263,7 +266,7 @@ export default function ToolPage() {
     <IdentityGate
       backHref="/app"
       title="wspr / tool"
-      onIdentityReady={(id) => { setIdentity(id); setStep('exchange') }}
+      onIdentityReady={(id) => { setIdentity(id); setContacts(loadContacts(id.publicKey)); setStep('exchange') }}
     />
   )
 
@@ -284,8 +287,31 @@ export default function ToolPage() {
           </div>
           <div>
             <p style={S.t4} className="text-xs mb-2">Their public key:</p>
+            {contacts.length > 0 && (
+              <div className="mb-2">
+                <button
+                  onClick={() => setShowContactPicker(p => !p)}
+                  style={{ ...S.t4, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', width: '100%' }}
+                  className="text-xs py-2 text-left px-3 hover:opacity-80">
+                  {showContactPicker ? '▲ Hide contacts' : `▼ Choose from contacts (${contacts.length})`}
+                </button>
+                {showContactPicker && (
+                  <div style={{ border: '1px solid var(--border)', borderTop: 'none', background: 'var(--bg-2)', maxHeight: '160px', overflowY: 'auto' }}>
+                    {contacts.map(c => (
+                      <button key={c.id}
+                        onClick={() => { setTheirPublicKey(c.publicKey); setShowContactPicker(false) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-2)' }}
+                        className="px-3 py-2 text-xs hover:opacity-70">
+                        <span>{c.name}</span>
+                        <span style={{ color: 'var(--text-5)', marginLeft: '8px' }}>{c.publicKey.slice(0,24)}...</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <textarea value={theirPublicKey} onChange={e => setTheirPublicKey(e.target.value)}
-              placeholder="Paste their public key..." autoComplete="off" spellCheck={false}
+              placeholder="Paste their public key or choose from contacts above..." autoComplete="off" spellCheck={false}
               style={{ ...S.bg2, border: '1px solid var(--border)', ...S.t1 }} className={`${inputCls} h-20`} />
           </div>
           <button onClick={handleConnect} disabled={!theirPublicKey.trim()}
