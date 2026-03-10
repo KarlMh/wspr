@@ -10,7 +10,7 @@ async function getKey(keyMaterial: Uint8Array, salt: Uint8Array): Promise<Crypto
     {
       name: 'PBKDF2',
       salt: salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer,
-      iterations: 100000,
+      iterations: 10000,
       hash: 'SHA-256'
     },
     raw,

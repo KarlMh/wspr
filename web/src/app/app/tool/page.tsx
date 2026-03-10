@@ -220,21 +220,31 @@ export default function ToolPage() {
     if (!sharedSecret || !safetyNumber) return addLog('ERROR: No connection.')
     const canvas = canvasRef.current
     if (!canvas || fileStatus !== 'ready') return addLog('ERROR: No image loaded.')
-    setStatus('processing'); addLog('Extracting...')
+    setStatus('processing'); addLog('Extracting hidden data...')
+    // Yield to browser before heavy sync work so UI can update
+    await new Promise(r => setTimeout(r, 30))
     try {
       const ctx = canvas.getContext('2d')!
-      const cipherBytes = decodeV2(ctx.getImageData(0, 0, canvas.width, canvas.height), getScatterKey())
-      if (cipherBytes) {
-        const result = await decryptFromBytes(cipherBytes, getKey(), undefined, sharedSecret)
-        if (result && result.message.trim().length > 0) {
-          setDecoded(result.message); setIntact(result.intact); setDecodedVisible(true)
-          setTimeout(() => setDecodedVisible(false), 30000)
-          setMobileTab('output')
-          addLog(result.intact ? 'Done. Integrity verified.' : 'Done. WARNING: Integrity check failed.')
-          setStatus('done'); return
-        }
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      // decodeV2 is sync+heavy — yield after so browser doesn't freeze
+      const cipherBytes = await new Promise<Uint8Array | null>(resolve => {
+        setTimeout(() => resolve(decodeV2(imageData, getScatterKey())), 0)
+      })
+      if (!cipherBytes || cipherBytes.length < 29) {
+        addLog('No hidden data found.'); setStatus('ready'); return
       }
-      addLog('No data found.'); setStatus('ready')
+      addLog(`Found ${cipherBytes.length} bytes — decrypting...`)
+      // Yield again before heavy PBKDF2
+      await new Promise(r => setTimeout(r, 30))
+      const result = await decryptFromBytes(cipherBytes, getKey(), undefined, sharedSecret)
+      if (result && result.message.trim().length > 0) {
+        setDecoded(result.message); setIntact(result.intact); setDecodedVisible(true)
+        setTimeout(() => setDecodedVisible(false), 30000)
+        setMobileTab('output')
+        addLog(result.intact ? 'Done. Integrity verified.' : 'Done. WARNING: Integrity check failed.')
+        setStatus('done'); return
+      }
+      addLog('No data found — wrong key or no message.'); setStatus('ready')
     } catch { addLog('No data found.'); setStatus('ready') }
   }
 
