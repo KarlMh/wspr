@@ -330,7 +330,7 @@ export default function SilentWitnessPage() {
         </div>
         <input ref={photoInputRef} type="file" accept="image/*,video/*,.pdf,.doc,.docx" className="hidden" onChange={handleCapture} />
         <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleCapture} />
-        <input ref={audioInputRef} type="file" accept="audio/*" capture="microphone" className="hidden" onChange={handleCapture} />
+        <input ref={audioInputRef} type="file" accept="audio/*" className="hidden" onChange={handleCapture} />
         <input ref={fileRef} type="file" className="hidden" onChange={handleCapture} />
 
         {/* Status */}
