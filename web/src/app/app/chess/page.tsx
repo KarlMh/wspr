@@ -28,28 +28,46 @@ export default function ChessPage() {
   const [sharedSecret, setSharedSecret] = useState<Uint8Array | null>(null)
   const [log, setLog] = useState<string[]>([])
   const [pendingPromotion, setPendingPromotion] = useState<Move | null>(null)
-  const [incomingChallenge, setIncomingChallenge] = useState<{ from: Contact; gameId: string } | null>(null)
+  const [incomingChallenge, setIncomingChallenge] = useState<{ from: Contact; gameId: string; secret: Uint8Array } | null>(null)
   const [drawOffer, setDrawOffer] = useState(false)
   const [flipped, setFlipped] = useState(false)
 
-  const chessNostr = useRef(new ChessNostr())
+  const chessNostrs = useRef<Map<string, ChessNostr>>(new Map())
+  const activeChessNostr = useRef<ChessNostr | null>(null)
   const sharedSecretRef = useRef<Uint8Array | null>(null)
   const gameStateRef = useRef<GameState | null>(null)
   const myColorRef = useRef<Color>('w')
   const gameIdRef = useRef('')
 
   useEffect(() => {
-    if (identity) setContacts(loadContacts(identity.publicKey))
+    if (!identity) return
+    const cs = loadContacts(identity.publicKey)
+    setContacts(cs)
+    // Auto-connect to all contacts to listen for incoming challenges
+    cs.forEach(async (contact) => {
+      try {
+        const privKey = await importPrivateKey(identity.privateKeyRaw)
+        const secret = await deriveSharedSecret(privKey, contact.publicKey)
+        const instance = new ChessNostr()
+        await instance.connect(identity.publicKey, contact.publicKey, secret, (msg) => {
+          handleMsgRef.current(msg, contact, secret)
+        })
+        chessNostrs.current.set(contact.publicKey, instance)
+      } catch {}
+    })
+    return () => {
+      chessNostrs.current.forEach(i => i.disconnect())
+      chessNostrs.current.clear()
+    }
   }, [identity])
 
   const addLog = (msg: string) => setLog(prev => [msg, ...prev].slice(0, 20))
+  const handleMsgRef = useRef<(msg: ChessMessage, contact: Contact, secret: Uint8Array) => void>(() => {})
 
-  const handleMsg = useCallback((msg: ChessMessage) => {
+  const handleMsg = useCallback((msg: ChessMessage, fromContact?: Contact, secret?: Uint8Array) => {
     if (msg.gameId !== gameIdRef.current) {
-      // Incoming challenge
-      if (msg.type === 'challenge') {
-        const from = loadContacts(identity?.publicKey || '').find(c => c.publicKey === msg.gameId.split(':')[0])
-        if (from) setIncomingChallenge({ from, gameId: msg.gameId })
+      if (msg.type === 'challenge' && fromContact) {
+        setIncomingChallenge({ from: fromContact, gameId: msg.gameId, secret: secret! })
       }
       return
     }
@@ -84,13 +102,16 @@ export default function ChessPage() {
     if (msg.type === 'draw_decline') { setDrawOffer(false); addLog('Draw declined.') }
   }, [identity])
 
+  // Keep ref in sync so auto-connect closures always call latest version
+  handleMsgRef.current = (msg, contact, secret) => handleMsg(msg, contact, secret)
+
   const connectToContact = async (contact: Contact) => {
     if (!identity) return
     const privKey = await importPrivateKey(identity.privateKeyRaw)
     const secret = await deriveSharedSecret(privKey, contact.publicKey)
     setSharedSecret(secret); sharedSecretRef.current = secret
     setOpponent(contact)
-    await chessNostr.current.disconnect()
+    await activeChessNostr.current?.disconnect()
     await chessNostr.current.connect(identity.publicKey, contact.publicKey, secret, handleMsg)
   }
 
@@ -102,32 +123,38 @@ export default function ChessPage() {
     setMyColor(color); myColorRef.current = color
     setScreen('waiting')
     addLog(`Challenging ${contact.name}...`)
+    const instance = chessNostrs.current.get(contact.publicKey)
+    activeChessNostr.current = instance || null
     const msg: ChessMessage = { type: 'challenge', gameId: id, color }
-    await chessNostr.current.send(msg, sharedSecretRef.current!)
+    if (instance) await instance.send(msg, sharedSecretRef.current!)
   }
 
   const handleAccept = async () => {
     if (!incomingChallenge || !identity) return
-    await connectToContact(incomingChallenge.from)
     const id = incomingChallenge.gameId
+    const secret = incomingChallenge.secret
+    const contact = incomingChallenge.from
     setGameId(id); gameIdRef.current = id
+    setSharedSecret(secret); sharedSecretRef.current = secret
     const color: Color = 'b'
     setMyColor(color); myColorRef.current = color
-    setOpponent(incomingChallenge.from)
+    setOpponent(contact)
     setIncomingChallenge(null)
     const gs = newGame()
     setGameState(gs); gameStateRef.current = gs
     setScreen('game')
+    // Use existing connection for this contact
+    const instance = chessNostrs.current.get(contact.publicKey)
+    activeChessNostr.current = instance || null
     const msg: ChessMessage = { type: 'accept', gameId: id }
-    await chessNostr.current.send(msg, sharedSecretRef.current!)
+    if (instance) await instance.send(msg, secret)
     addLog('Game started! You play Black.')
   }
 
   const handleDecline = async () => {
     if (!incomingChallenge) return
-    await connectToContact(incomingChallenge.from)
-    const msg: ChessMessage = { type: 'decline', gameId: incomingChallenge.gameId }
-    await chessNostr.current.send(msg, sharedSecretRef.current!)
+    const instance = chessNostrs.current.get(incomingChallenge.from.publicKey)
+    if (instance) await instance.send({ type: 'decline', gameId: incomingChallenge.gameId }, incomingChallenge.secret)
     setIncomingChallenge(null)
   }
 
@@ -168,7 +195,7 @@ export default function ChessPage() {
     const next = applyMove(gs, move)
     setGameState(next); gameStateRef.current = next
     const msg: ChessMessage = { type: 'move', gameId: gameIdRef.current, move }
-    await chessNostr.current.send(msg, sharedSecretRef.current!)
+    await activeChessNostr.current?.send(msg, sharedSecretRef.current!)
     addLog(`${posToAlg(move.from)}→${posToAlg(move.to)}`)
     if (next.status === 'checkmate') addLog(`Checkmate! You win.`)
     if (next.status === 'stalemate') addLog('Stalemate — draw.')
@@ -185,7 +212,7 @@ export default function ChessPage() {
   const handleResign = async () => {
     if (!gameState || !sharedSecret) return
     const msg: ChessMessage = { type: 'resign', gameId: gameIdRef.current }
-    await chessNostr.current.send(msg, sharedSecret)
+    await activeChessNostr.current?.send(msg, sharedSecret)
     setGameState(prev => prev ? { ...prev, status: 'resigned', winner: myColor === 'w' ? 'b' : 'w' } : prev)
     addLog('You resigned.')
   }
@@ -193,14 +220,14 @@ export default function ChessPage() {
   const handleDrawOffer = async () => {
     if (!sharedSecret) return
     const msg: ChessMessage = { type: 'draw_offer', gameId: gameIdRef.current }
-    await chessNostr.current.send(msg, sharedSecret)
+    await activeChessNostr.current?.send(msg, sharedSecret)
     addLog('Draw offered.')
   }
 
   const handleDrawAccept = async () => {
     if (!sharedSecret) return
     const msg: ChessMessage = { type: 'draw_accept', gameId: gameIdRef.current }
-    await chessNostr.current.send(msg, sharedSecret)
+    await activeChessNostr.current?.send(msg, sharedSecret)
     setGameState(prev => prev ? { ...prev, status: 'draw' } : prev)
     setDrawOffer(false)
     addLog('Draw accepted.')
@@ -387,7 +414,7 @@ export default function ChessPage() {
                 <p style={{ color: 'var(--text-3)' }} className="text-xs">Opponent offers a draw</p>
                 <div className="flex gap-2">
                   <button onClick={handleDrawAccept} style={{ background: 'var(--text-1)', color: 'var(--bg)', border: 'none', cursor: 'pointer' }} className="px-3 py-1 text-xs">Accept</button>
-                  <button onClick={async () => { setDrawOffer(false); await chessNostr.current.send({ type: 'draw_decline', gameId: gameIdRef.current }, sharedSecretRef.current!) }} style={{ border: '1px solid var(--border)', color: 'var(--text-4)', background: 'none', cursor: 'pointer' }} className="px-3 py-1 text-xs">Decline</button>
+                  <button onClick={async () => { setDrawOffer(false); await activeChessNostr.current?.send({ type: 'draw_decline', gameId: gameIdRef.current }, sharedSecretRef.current!) }} style={{ border: '1px solid var(--border)', color: 'var(--text-4)', background: 'none', cursor: 'pointer' }} className="px-3 py-1 text-xs">Decline</button>
                 </div>
               </div>
             )}
