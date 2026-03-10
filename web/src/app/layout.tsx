@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import LockBar from '@/components/LockBar'
 import './globals.css'
 
 export const viewport: Viewport = {
@@ -46,7 +47,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           } catch(e) {}
         })();
       `}} />
-      <body>{children}</body>
+      <body>
+        {children}
+        <LockBar />
+      </body>
     </html>
   )
 }
