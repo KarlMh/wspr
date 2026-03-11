@@ -201,7 +201,7 @@ export default function ChessPage() {
       <div style={{ display: 'inline-block', border: '1px solid var(--border)' }}>
         {rows.map((r, ri) => (
           <div key={r} style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={{ color: 'var(--text-5)', fontSize: '10px', width: '14px', textAlign: 'center', flexShrink: 0 }}>{rankLabels[ri]}</span>
+            <span style={{ color: 'var(--text-5)', fontSize: '9px', width: '14px', textAlign: 'center', flexShrink: 0 }}>{rankLabels[ri]}</span>
             {cols.map((c) => {
               const piece = gameState.board[r][c]
               const isLight = (r + c) % 2 === 0
@@ -210,12 +210,12 @@ export default function ChessPage() {
               const symbol = piece ? PIECE_SYMBOLS[piece.color + piece.type] : ''
               return (
                 <div key={c} onClick={() => handleSquareClick(r, c)} style={{
-                  width: 46, height: 46,
+                  width: 'min(11vw, 46px)', height: 'min(11vw, 46px)',
                   background: isSel ? 'var(--bg-3)' : isLight ? 'var(--bg-2)' : 'var(--bg)',
                   border: isSel ? '2px solid var(--text-2)' : '1px solid var(--border)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   cursor: isMyTurn && !gameOver ? 'pointer' : 'default',
-                  position: 'relative', fontSize: '26px', userSelect: 'none',
+                  position: 'relative', fontSize: 'min(6.5vw, 26px)', userSelect: 'none',
                 }}>
                   {isLegal && (
                     <div style={{
@@ -235,7 +235,7 @@ export default function ChessPage() {
         ))}
         <div style={{ display: 'flex', paddingLeft: '14px' }}>
           {fileLabels.map(f => (
-            <span key={f} style={{ color: 'var(--text-5)', fontSize: '10px', width: '46px', textAlign: 'center' }}>{f}</span>
+            <span key={f} style={{ color: 'var(--text-5)', fontSize: '10px', width: 'min(11vw, 46px)', textAlign: 'center' }}>{f}</span>
           ))}
         </div>
       </div>
@@ -322,7 +322,7 @@ export default function ChessPage() {
               </div>
             </div>
 
-            <div className="flex justify-center overflow-x-auto">{renderBoard()}</div>
+            <div className="flex justify-center">{renderBoard()}</div>
 
             {pendingPromotion && (
               <div style={{ border: '1px solid var(--border-2)', background: 'var(--bg-2)' }} className="p-4 flex flex-col items-center gap-3">
