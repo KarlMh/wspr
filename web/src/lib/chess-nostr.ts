@@ -10,7 +10,8 @@ const RELAYS = [
   'wss://offchain.pub',
 ]
 
-const CHESS_KIND = 20002
+// Use kind 1 (regular note) so relays don't filter it out
+const CHESS_KIND = 1
 
 function getChessTag(myPubKey: string, theirPubKey: string): string {
   const sorted = [myPubKey, theirPubKey].sort()
@@ -28,7 +29,6 @@ export class ChessNostr {
   private seen = new Set<string>()
   private sub: { close: () => void } | null = null
   private onMsgCb: ((msg: ChessMessage) => void) | null = null
-  private sharedSecret: Uint8Array | null = null
 
   async connect(
     myPubKey: string,
@@ -38,12 +38,12 @@ export class ChessNostr {
   ) {
     this.channelTag = getChessTag(myPubKey, theirPubKey)
     this.onMsgCb = onMessage
-    this.sharedSecret = sharedSecret
     this.privKey = generateSecretKey()
     this.pubKey = getPublicKey(this.privKey)
     this.pool = new SimplePool()
 
-    // Look back 10 minutes to catch challenges sent before we connected
+    console.log('[chess-nostr] connecting, tag:', this.channelTag)
+
     const since = Math.floor(Date.now() / 1000) - 600
     const filter: Record<string, unknown> = {
       kinds: [CHESS_KIND],
@@ -56,18 +56,24 @@ export class ChessNostr {
       filter as unknown as Filter,
       {
         onevent: async (event) => {
+          console.log('[chess-nostr] raw event received, id:', event.id.slice(0,8), 'pubkey:', event.pubkey.slice(0,8))
           if (this.seen.has(event.id)) return
           this.seen.add(event.id)
           if (event.pubkey === this.pubKey) return
           try {
             const plain = await decryptMessage(event.content, sharedSecret, event.id)
+            console.log('[chess-nostr] decrypted:', plain?.slice(0, 80))
             if (!plain) return
             const msg: ChessMessage = JSON.parse(plain)
+            console.log('[chess-nostr] parsed msg type:', msg.type)
             if (this.onMsgCb) this.onMsgCb(msg)
-          } catch {}
+          } catch (e) {
+            console.error('[chess-nostr] decrypt/parse error:', e)
+          }
         }
       }
     )
+    console.log('[chess-nostr] subscribed to tag:', this.channelTag)
   }
 
   async send(msg: ChessMessage, sharedSecret: Uint8Array) {
@@ -81,13 +87,18 @@ export class ChessNostr {
       tags: [['t', this.channelTag]],
       content: ciphertext,
     }, this.privKey)
-    try {
-      await Promise.any(this.pool.publish(RELAYS, event))
-    } catch {
-      // retry once
-      await new Promise(r => setTimeout(r, 1000))
-      try { await Promise.any(this.pool.publish(RELAYS, event)) } catch {}
+    console.log('[chess-nostr] sending msg type:', msg.type, 'tag:', this.channelTag, 'event id:', event.id.slice(0,8))
+    let published = false
+    for (const relay of RELAYS) {
+      try {
+        await Promise.race([
+          this.pool.publish([relay], event).then(() => { published = true; console.log('[chess-nostr] published to', relay) }),
+          new Promise((_, r) => setTimeout(r, 5000))
+        ])
+        if (published) break
+      } catch {}
     }
+    if (!published) console.error('[chess-nostr] failed to publish to any relay')
   }
 
   disconnect() {
