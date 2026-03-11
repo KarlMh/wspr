@@ -233,10 +233,13 @@ export default function ChessPage() {
 
   const renderBoard = () => {
     if (!gameState) return null
-    const rows = flipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7]
-    const cols = flipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7]
-    const rankLabels = flipped ? [...RANKS].reverse() : RANKS
-    const fileLabels = flipped ? [...FILES].reverse() : FILES
+    // White = rows 0-7 top to bottom (rank 8 at top), Black = flipped so rank 1 at top
+    const baseFlip = myColor === 'b'
+    const isFlipped = baseFlip !== flipped
+    const rows = isFlipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7]
+    const cols = isFlipped ? [7,6,5,4,3,2,1,0] : [0,1,2,3,4,5,6,7]
+    const rankLabels = isFlipped ? [...RANKS].reverse() : RANKS
+    const fileLabels = isFlipped ? [...FILES].reverse() : FILES
     return (
       <div style={{ display: 'inline-block', border: '1px solid var(--border)' }}>
         {rows.map((r, ri) => (
