@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.wspr.app",
+    "sha256_cert_fingerprints": [
+      "64:CB:7F:1D:F7:83:F9:E9:85:0B:BE:CA:FB:59:D7:3A:27:99:A8:4F:6A:B1:43:9D:BE:E8:45:96:FE:B3"
+    ]
+  }
+}]
