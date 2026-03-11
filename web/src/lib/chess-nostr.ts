@@ -88,17 +88,13 @@ export class ChessNostr {
       content: ciphertext,
     }, this.privKey)
     console.log('[chess-nostr] sending msg type:', msg.type, 'tag:', this.channelTag, 'event id:', event.id.slice(0,8))
-    let published = false
-    for (const relay of RELAYS) {
-      try {
-        await Promise.race([
-          this.pool.publish([relay], event).then(() => { published = true; console.log('[chess-nostr] published to', relay) }),
-          new Promise((_, r) => setTimeout(r, 5000))
-        ])
-        if (published) break
-      } catch {}
+    try {
+      await Promise.any(this.pool.publish(RELAYS, event).map((p: Promise<string>) =>
+        p.then((relay: string) => { console.log('[chess-nostr] published to', relay); return relay })
+      ))
+    } catch {
+      console.error('[chess-nostr] failed to publish to any relay')
     }
-    if (!published) console.error('[chess-nostr] failed to publish to any relay')
   }
 
   disconnect() {
