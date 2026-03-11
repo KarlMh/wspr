@@ -53,7 +53,7 @@ export class ChessNostr {
 
     this.sub = this.pool.subscribeMany(
       RELAYS,
-      [filter as unknown as Filter],
+      filter as unknown as Filter,
       {
         onevent: async (event) => {
           if (this.seen.has(event.id)) return
