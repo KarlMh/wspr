@@ -48,6 +48,9 @@ export default function ChessPage() {
   const handleChessMsg = useCallback((chess: ChessMessage, fromContact: Contact) => {
     console.log('[chess] msg from', fromContact.name, ':', chess.type, chess.gameId)
     if (chess.type === 'challenge') {
+      // Ignore challenges we already handled (persisted across refresh)
+      const handled = JSON.parse(localStorage.getItem('wspr_chess_handled') || '[]')
+      if (handled.includes(chess.gameId)) return
       setIncomingChallenge({ from: fromContact, gameId: chess.gameId })
       addLog(`♟ ${fromContact.name} challenges you!`)
       return
@@ -113,8 +116,15 @@ export default function ChessPage() {
     addLog('Challenge sent!')
   }
 
+  const markHandled = (gameId: string) => {
+    const handled = JSON.parse(localStorage.getItem('wspr_chess_handled') || '[]')
+    handled.push(gameId)
+    localStorage.setItem('wspr_chess_handled', JSON.stringify(handled.slice(-20)))
+  }
+
   const handleAccept = async () => {
     if (!incomingChallenge) return
+    markHandled(incomingChallenge.gameId)
     const { from, gameId: id } = incomingChallenge
     setGameId(id); gameIdRef.current = id
     setMyColor('b'); myColorRef.current = 'b'
@@ -130,6 +140,7 @@ export default function ChessPage() {
 
   const handleDecline = async () => {
     if (!incomingChallenge) return
+    markHandled(incomingChallenge.gameId)
     await sendChess({ type: 'decline', gameId: incomingChallenge.gameId }, incomingChallenge.from.publicKey)
     setIncomingChallenge(null)
   }

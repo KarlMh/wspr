@@ -37,7 +37,7 @@ export class ChessTransport {
 
     const filter: Record<string, unknown> = {
       kinds: [30078],
-      since: Math.floor(Date.now() / 1000) - 300,
+      since: Math.floor(Date.now() / 1000) - 30,
       '#d': [this.tag],
     }
 
