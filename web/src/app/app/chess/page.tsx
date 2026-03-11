@@ -40,6 +40,9 @@ export default function ChessPage() {
   const myColorRef = useRef<Color>('w')
   const gameIdRef = useRef('')
 
+  const addLog = (msg: string) => setLog(prev => [msg, ...prev].slice(0, 20))
+  const handleMsgRef = useRef<(msg: ChessMessage, contact: Contact, secret: Uint8Array) => void>(() => {})
+
   useEffect(() => {
     if (!identity) return
     const cs = loadContacts(identity.publicKey)
@@ -50,26 +53,26 @@ export default function ChessPage() {
         const privKey = await importPrivateKey(identity.privateKeyRaw)
         const secret = await deriveSharedSecret(privKey, contact.publicKey)
         const instance = new ChessNostr()
+        // Use handleMsgRef so closure always calls latest version
         await instance.connect(identity.publicKey, contact.publicKey, secret, (msg) => {
           handleMsgRef.current(msg, contact, secret)
         })
         chessNostrs.current.set(contact.publicKey, instance)
-      } catch (e) { console.error('Chess connect failed:', e) }
+        console.log('[chess] connected to', contact.name)
+      } catch (e) { console.error('[chess] connect failed:', contact.name, e) }
     })
-    // All connections initiated
-    setTimeout(() => setConnecting(false), 1500)
+    setTimeout(() => setConnecting(false), 2000)
     return () => {
       chessNostrs.current.forEach(i => i.disconnect())
       chessNostrs.current.clear()
     }
   }, [identity])
 
-  const addLog = (msg: string) => setLog(prev => [msg, ...prev].slice(0, 20))
-  const handleMsgRef = useRef<(msg: ChessMessage, contact: Contact, secret: Uint8Array) => void>(() => {})
-
   const handleMsg = useCallback((msg: ChessMessage, fromContact?: Contact, secret?: Uint8Array) => {
+    console.log('[chess] msg received:', msg.type, 'gameId:', msg.gameId, 'currentGameId:', gameIdRef.current)
     if (msg.gameId !== gameIdRef.current) {
       if (msg.type === 'challenge' && fromContact) {
+        console.log('[chess] incoming challenge from', fromContact.name)
         setIncomingChallenge({ from: fromContact, gameId: msg.gameId, secret: secret! })
       }
       return
