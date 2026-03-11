@@ -3,8 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTheme } from '@/lib/theme'
 import { getSessionIdentity, type Identity } from '@/lib/identity'
 import { loadContacts, type Contact } from '@/lib/storage'
-import { importPrivateKey, deriveSharedSecret } from '@/lib/keys'
-import { NostrChat } from '@/lib/nostr'
+import { ChessTransport } from '@/lib/chess-nostr'
 import IdentityGate from '@/components/IdentityGate'
 import Link from 'next/link'
 import {
@@ -35,7 +34,7 @@ export default function ChessPage() {
   const [status, setStatus] = useState('Connecting...')
 
   // One NostrChat per contact, keyed by pubkey
-  const chats = useRef<Map<string, NostrChat>>(new Map())
+  const chats = useRef<Map<string, ChessTransport>>(new Map())
   const activeChat = useRef<NostrChat | null>(null)
   const gameStateRef = useRef<GameState | null>(null)
   const myColorRef = useRef<Color>('w')
@@ -46,34 +45,19 @@ export default function ChessPage() {
 
   const addLog = useCallback((msg: string) => setLog(prev => [msg, ...prev].slice(0, 30)), [])
 
-  // Handle incoming chess message wrapped in NostrMessage
-  const handleNostrMsg = useCallback((rawMsg: import('@/lib/nostr').NostrMessage, fromContact: Contact) => {
-    if (rawMsg.type !== 'text') return
-    let chess: ChessMessage
-    try { chess = JSON.parse(rawMsg.ciphertext) } catch { return }
-    if (!chess.gameId || !chess.type) return
-
+  const handleChessMsg = useCallback((chess: ChessMessage, fromContact: Contact) => {
     console.log('[chess] msg from', fromContact.name, ':', chess.type, chess.gameId)
-
-    // Incoming challenge — always show banner
     if (chess.type === 'challenge') {
       setIncomingChallenge({ from: fromContact, gameId: chess.gameId })
       addLog(`♟ ${fromContact.name} challenges you!`)
       return
     }
-
-    // Must match active game
     if (chess.gameId !== gameIdRef.current) return
-
     if (chess.type === 'accept') {
-      const gs = newGame()
-      setGameState(gs); gameStateRef.current = gs
-      setScreen('game')
+      const gs = newGame(); setGameState(gs); gameStateRef.current = gs; setScreen('game')
       addLog('Challenge accepted — game on!')
     }
-    if (chess.type === 'decline') {
-      setScreen('lobby'); addLog('Challenge declined.')
-    }
+    if (chess.type === 'decline') { setScreen('lobby'); addLog('Challenge declined.') }
     if (chess.type === 'move' && chess.move) {
       const gs = gameStateRef.current; if (!gs) return
       const next = applyMove(gs, chess.move)
@@ -88,60 +72,33 @@ export default function ChessPage() {
       addLog('Opponent resigned. You win!')
     }
     if (chess.type === 'draw_offer') { setDrawOffer(true); addLog('½ Opponent offers draw.') }
-    if (chess.type === 'draw_accept') {
-      setGameState(prev => prev ? { ...prev, status: 'draw' } : prev)
-      addLog('½ Draw agreed.')
-    }
+    if (chess.type === 'draw_accept') { setGameState(prev => prev ? { ...prev, status: 'draw' } : prev); addLog('½ Draw agreed.') }
     if (chess.type === 'draw_decline') { setDrawOffer(false); addLog('Draw declined.') }
   }, [addLog])
 
-  // Connect to all contacts on load
   useEffect(() => {
     if (!identity) return
     const cs = loadContacts(identity.publicKey)
     setContacts(cs)
     if (cs.length === 0) { setStatus('No contacts'); return }
-
-    let connected = 0
+    let done = 0
     cs.forEach(async (contact) => {
       try {
-        const privKey = await importPrivateKey(identity.privateKeyRaw)
-        const secret = await deriveSharedSecret(privKey, contact.publicKey)
-        const chat = new NostrChat()
-        await chat.connect(
-          identity.publicKey,
-          contact.publicKey,
-          (msg) => handleNostrMsg(msg, contact)
-        )
-        chats.current.set(contact.publicKey, chat)
-        connected++
+        const transport = new ChessTransport()
+        await transport.connect(identity.publicKey, contact.publicKey, (msg) => handleChessMsg(msg, contact))
+        chats.current.set(contact.publicKey, transport)
+        done++
         console.log('[chess] connected to', contact.name)
-        if (connected === cs.length) setStatus('Ready')
-      } catch (e) {
-        console.error('[chess] connect failed:', contact.name, e)
-      }
+        if (done === cs.length) setStatus('Ready')
+      } catch (e) { console.error('[chess] connect failed:', contact.name, e) }
     })
+    return () => { chats.current.forEach(c => c.disconnect()); chats.current.clear() }
+  }, [identity, handleChessMsg])
 
-    return () => {
-      chats.current.forEach(c => c.disconnect())
-      chats.current.clear()
-    }
-  }, [identity, handleNostrMsg])
-
-  // Send chess message via NostrChat (it handles encryption)
   const sendChess = useCallback(async (chess: ChessMessage, toPubKey: string) => {
-    const chat = chats.current.get(toPubKey)
-    if (!chat) { console.error('[chess] no chat for', toPubKey); return }
-    // Wrap chess message as NostrMessage ciphertext field (plaintext JSON, encryption done by NostrChat)
-    // Actually NostrChat.send expects a NostrMessage — we piggyback chess JSON in ciphertext
-    // We need to send raw — let's call send with a fake NostrMessage
-    await chat.send({
-      id: crypto.randomUUID(),
-      from: identityRef.current?.publicKey.slice(0,16) || '',
-      ciphertext: JSON.stringify(chess),
-      timestamp: Date.now(),
-      type: 'text',
-    })
+    const transport = chats.current.get(toPubKey)
+    if (!transport) { console.error('[chess] no transport for', toPubKey); return }
+    await transport.send(chess)
   }, [])
 
   const handleChallenge = async (contact: Contact) => {
