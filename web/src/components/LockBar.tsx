@@ -45,7 +45,7 @@ export default function LockBar() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: '6px 16px',
+      padding: '4px 12px',
       fontFamily: 'monospace',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -62,7 +62,7 @@ export default function LockBar() {
           color: 'var(--text-4)',
           cursor: 'pointer',
           fontSize: '10px',
-          padding: '2px 10px',
+          padding: '2px 8px',
           fontFamily: 'monospace',
           letterSpacing: '0.1em',
         }}
