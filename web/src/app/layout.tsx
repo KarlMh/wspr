@@ -48,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         })();
       `}} />
       <body>
-        {children}
+        <div style={{ paddingBottom: '48px' }}>{children}</div>
         <LockBar />
       </body>
     </html>
