@@ -249,7 +249,12 @@ export default function ChessPage() {
         <div className="flex items-center gap-4">
           <span style={{ color: 'var(--text-5)', fontSize: '10px' }}>{status}</span>
           <button onClick={toggleTheme} style={{ color: 'var(--text-4)', background: 'none', border: '1px solid var(--border-2)', padding: '2px 8px', cursor: 'pointer', fontSize: '12px' }}>{theme === 'dark' ? '☀' : '☾'}</button>
-          <Link href="/app" style={{ color: 'var(--text-4)' }} className="text-xs uppercase tracking-widest hover:opacity-80">← back</Link>
+          {screen === 'game'
+            ? <button onClick={() => { setScreen('lobby'); setGameState(null); setSelected(null); setLegalMoves([]) }} style={{ color: 'var(--text-4)', background: 'none', border: 'none', cursor: 'pointer' }} className="text-xs uppercase tracking-widest hover:opacity-80">← back</button>
+            : screen === 'waiting'
+            ? <button onClick={() => setScreen('lobby')} style={{ color: 'var(--text-4)', background: 'none', border: 'none', cursor: 'pointer' }} className="text-xs uppercase tracking-widest hover:opacity-80">← back</button>
+            : <Link href="/app" style={{ color: 'var(--text-4)' }} className="text-xs uppercase tracking-widest hover:opacity-80">← back</Link>
+          }
         </div>
       </div>
 
