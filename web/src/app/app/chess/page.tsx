@@ -35,7 +35,7 @@ export default function ChessPage() {
 
   // One NostrChat per contact, keyed by pubkey
   const chats = useRef<Map<string, ChessTransport>>(new Map())
-  const activeChat = useRef<NostrChat | null>(null)
+  const activeChat = useRef<ChessTransport | null>(null)
   const gameStateRef = useRef<GameState | null>(null)
   const myColorRef = useRef<Color>('w')
   const gameIdRef = useRef('')
